@@ -6,9 +6,7 @@ the_project/
 └── todo-app/
     ├── Dockerfile
     ├── README.md
-    ├── main.py
-    └── manifests/
-        └── deployment.yaml
+    └── main.py
 ```
 
 ***
@@ -111,9 +109,9 @@ INFO[0002] Starting helpers...
 INFO[0002] Starting node 'k3d-k3s-default-tools'
 INFO[0002] Started cluster 'k3s-default'
 ```
-**Apply the Deployment Manifest**
+**Creates the deployment object and underlying pod with the image**
 ```bash
-kubectl apply -f manifests/deployment.yaml
+kubectl create deployment todo-app --image="arkb2023/todo-app:latest"
 ```
 *Output*
 ```text
