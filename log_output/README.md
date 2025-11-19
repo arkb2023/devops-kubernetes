@@ -1,49 +1,15 @@
 ## Log output app
 
-### 1. Initialize Kubernetes cluster
+### 1. Directory and File Structure
+<pre>
+log_output
+    ├── Dockerfile
+    ├── log_output.sh
+    └── README.md
+</pre>
 
-```bash
-k3d cluster start
-```
-```Output
-INFO[0000] Using the k3d-tools node to gather environment information
-INFO[0000] Starting existing tools node k3d-k3s-default-tools...
-INFO[0000] Starting node 'k3d-k3s-default-tools'
-INFO[0000] Starting new tools node...
-INFO[0000] Starting node 'k3d-k3s-default-tools'
-INFO[0002] Starting cluster 'k3s-default'
-INFO[0002] Starting servers...
-INFO[0002] Starting node 'k3d-k3s-default-server-0'
-INFO[0009] Starting agents...
-INFO[0009] Starting node 'k3d-k3s-default-agent-1'
-INFO[0009] Starting node 'k3d-k3s-default-agent-0'
-INFO[0012] Starting helpers...
-INFO[0012] Starting node 'k3d-k3s-default-tools'
-INFO[0012] Starting node 'k3d-k3s-default-serverlb'
-INFO[0018] Injecting records for hostAliases (incl. host.k3d.internal) and for 5 network members into CoreDNS configmap...
-INFO[0021] Started cluster 'k3s-default'
-```
-
-**Check the running containers**
-```bash
-docker ps
-```
-```Output
-CONTAINER ID   IMAGE                            COMMAND                  CREATED         STATUS         PORTS                     NAMES
-511018adc2e4   ghcr.io/k3d-io/k3d-tools:5.8.3   "/app/k3d-tools noop"    4 minutes ago   Up 4 minutes                             k3d-k3s-default-tools
-baafad67dc35   ghcr.io/k3d-io/k3d-proxy:5.8.3   "/bin/sh -c nginx-pr…"   4 hours ago     Up 3 minutes   0.0.0.0:37263->6443/tcp   k3d-k3s-default-serverlb
-e958a8608497   rancher/k3s:v1.31.5-k3s1         "/bin/k3d-entrypoint…"   4 hours ago     Up 3 minutes                             k3d-k3s-default-agent-1
-cdd430d6ba86   rancher/k3s:v1.31.5-k3s1         "/bin/k3d-entrypoint…"   4 hours ago     Up 3 minutes                             k3d-k3s-default-agent-0
-4a99bd2617c1   rancher/k3s:v1.31.5-k3s1         "/bin/k3d-entrypoint…"   4 hours ago     Up 4 minutes                             k3d-k3s-default-server-0
-```
-
----
-
-### 2. Create the Log script and Dockerfile  
-- Refer [log_output.sh](./log_output.sh) 
-- Refer [Dockerfile](./Dockerfile)
-
----
+### 2. Prerequisites
+Docker, k3d, kubectl installed
 
 ### 3. Build and Test locally
     
@@ -51,7 +17,8 @@ cdd430d6ba86   rancher/k3s:v1.31.5-k3s1         "/bin/k3d-entrypoint…"   4 hou
 ```bash
 docker build  -t arkb2023/log-output:latest .
 ```
-```Output
+*Output*
+```text
 [+] Building 2.1s (10/10) FINISHED                                                                                                                                                                docker:default
 => [internal] load build definition from Dockerfile                                                                                                                                                        0.0s
 => => transferring dockerfile: 221B                                                                                                                                                                        0.0s
@@ -79,7 +46,8 @@ docker build  -t arkb2023/log-output:latest .
 ```bash
 docker run --rm arkb2023/log-output:latest
 ```
-```Output
+*Output*
+```text
 2025-11-18T13:53:21+00:00: 9f4b98a0-c7f9-4e82-aef9-d08e3e496bb4
 2025-11-18T13:53:26+00:00: 9f4b98a0-c7f9-4e82-aef9-d08e3e496bb4
 2025-11-18T13:53:31+00:00: 9f4b98a0-c7f9-4e82-aef9-d08e3e496bb4
@@ -91,7 +59,8 @@ docker run --rm arkb2023/log-output:latest
 ```
 docker push arkb2023/log-output:latest
 ```
-```Output
+*Output*
+```text
 The push refers to repository [docker.io/arkb2023/log-output]
 5f0c0a7e0a6d: Pushed
 9d9447ba22ec: Pushed
@@ -105,18 +74,55 @@ https://hub.docker.com/repository/docker/arkb2023/log-output/tags/latest
 
 ---
 
-### 5. Create Kubernetes Manifests
-- Refer [deployment.yaml](./manifests/deployment.yaml)
-> In deployment.yaml, register the DockerHub repo image `arkb2023/log-output:latest`
+
+### 5. Deploy to Kubernetes
+
+```bash
+k3d cluster start k3s-default
+```
+*Output*
+```text
+INFO[0000] Using the k3d-tools node to gather environment information
+INFO[0000] Starting existing tools node k3d-k3s-default-tools...
+INFO[0000] Starting node 'k3d-k3s-default-tools'
+INFO[0000] Starting new tools node...
+INFO[0000] Starting node 'k3d-k3s-default-tools'
+INFO[0002] Starting cluster 'k3s-default'
+INFO[0002] Starting servers...
+INFO[0002] Starting node 'k3d-k3s-default-server-0'
+INFO[0009] Starting agents...
+INFO[0009] Starting node 'k3d-k3s-default-agent-1'
+INFO[0009] Starting node 'k3d-k3s-default-agent-0'
+INFO[0012] Starting helpers...
+INFO[0012] Starting node 'k3d-k3s-default-tools'
+INFO[0012] Starting node 'k3d-k3s-default-serverlb'
+INFO[0018] Injecting records for hostAliases (incl. host.k3d.internal) and for 5 network members into CoreDNS configmap...
+INFO[0021] Started cluster 'k3s-default'
+```
+
+**Check the running containers**
+```bash
+docker ps
+```
+*Output*
+```text
+CONTAINER ID   IMAGE                            COMMAND                  CREATED         STATUS         PORTS                     NAMES
+511018adc2e4   ghcr.io/k3d-io/k3d-tools:5.8.3   "/app/k3d-tools noop"    4 minutes ago   Up 4 minutes                             k3d-k3s-default-tools
+baafad67dc35   ghcr.io/k3d-io/k3d-proxy:5.8.3   "/bin/sh -c nginx-pr…"   4 hours ago     Up 3 minutes   0.0.0.0:37263->6443/tcp   k3d-k3s-default-serverlb
+e958a8608497   rancher/k3s:v1.31.5-k3s1         "/bin/k3d-entrypoint…"   4 hours ago     Up 3 minutes                             k3d-k3s-default-agent-1
+cdd430d6ba86   rancher/k3s:v1.31.5-k3s1         "/bin/k3d-entrypoint…"   4 hours ago     Up 3 minutes                             k3d-k3s-default-agent-0
+4a99bd2617c1   rancher/k3s:v1.31.5-k3s1         "/bin/k3d-entrypoint…"   4 hours ago     Up 4 minutes                             k3d-k3s-default-server-0
+```
 
 ---
 
-### 6. Deploy and Verify the App
+**Creates the deployment object and underlying pod with the image**
 
 ```bash
-kubectl apply -f manifests/deployment.yaml
+kubectl create deployment log-output-dep --image="arkb2023/log-output:latest"
 ```
-```Output
+*Output*
+```text
 deployment.apps/log-output-dep created
 ```
 
@@ -124,7 +130,8 @@ deployment.apps/log-output-dep created
 ```bash
 kubectl get deployments
 ```
-```Output
+*Output*
+```text
 NAME                READY   UP-TO-DATE   AVAILABLE   AGE
 log-output-dep      1/1     1            1           21m
 ```
@@ -132,7 +139,8 @@ log-output-dep      1/1     1            1           21m
 ```bash
 kubectl get pods
 ```
-```Output
+*Output*
+```text
 NAME                                 READY   STATUS    RESTARTS   AGE
 log-output-dep-68fc9c9b54-v54qw      1/1     Running   0          23m
 ```
@@ -141,10 +149,21 @@ log-output-dep-68fc9c9b54-v54qw      1/1     Running   0          23m
 ```bash
 kubectl logs -f log-output-dep-68fc9c9b54-v54qw
 ```
-```Output
+*Output*
+```text
 2025-11-18T13:57:58+00:00: cf35e8ec-be2d-4571-bf2a-710477b78348
 2025-11-18T13:58:03+00:00: cf35e8ec-be2d-4571-bf2a-710477b78348
 2025-11-18T13:58:08+00:00: cf35e8ec-be2d-4571-bf2a-710477b78348
+```
+
+### 6. Cleanup
+**Delete the Kubernetes Deployment**
+```bash
+kubectl delete deployment log-output-dep
+```
+*Output*
+```text
+deployment.apps "log-output-dep" deleted from default namespace
 ```
 
 ---
