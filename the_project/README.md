@@ -1,4 +1,4 @@
-## Todo App Server
+## Todo App Server *(with manifests)*
 
 ### 1. **Directory and File Structure**
 ```
