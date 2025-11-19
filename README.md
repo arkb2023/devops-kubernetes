@@ -1,11 +1,7 @@
-# [Kubernetes course](https://courses.mooc.fi/org/uh-cs/courses/devops-with-kubernetes) submissions
+# [Devops with Kubernetes](https://courses.mooc.fi/org/uh-cs/courses/devops-with-kubernetes)
 
-
-```markdown
 ## Exercises
 
 ### Chapter-2
 
 - [1.1.](https://github.com/arkb2023/devops-kubernetes/tree/1.1/log_output)
-
-```
