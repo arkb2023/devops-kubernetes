@@ -36,3 +36,5 @@ public/
 secrets/
 *env*
 *help*
+*pycache*
+*.pyc*

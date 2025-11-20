@@ -14,9 +14,11 @@ spec:
     spec:
       containers:
         - name: todo-app
-          image: arkb2023/todo-app:latest  # image name/tag
+          image: arkb2023/todo-app:1.5  # image name/tag
           env:
             - name: PORT
-              value: "8080"               
+              value: "8080"               # can be any port you choose
+            - name: APP_MODE
+              value: "Development"      # example additional env variable
           ports:
             - containerPort: 8080

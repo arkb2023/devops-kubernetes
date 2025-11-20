@@ -1,64 +1,65 @@
-## Todo App Server *(with manifests)*
+## Exercise: 1.5. The project, step 3
+### Todo App Server Enhancements
+
+- Built upon the application from [Exercise: 1.4. The project, step2](https://github.com/arkb2023/devops-kubernetes/tree/1.4/the_project)
+- Added HTTP server responding with two hashes:
+    - Application Hash: Persistent until process exit
+    - Request Hash: Unique per HTTP request
+- Used kubectl port-forward to forward cluster pod port to localhost
 
 ### 1. **Directory and File Structure**
 ```
-the_project/
-└── todo-app/
+the_project
+├── README.md
+└── todo-app
     ├── Dockerfile
-    ├── README.md
     ├── main.py
-    └── manifests/
+    └── manifests
         └── deployment.yaml
 ```
 
 ***
 
+
 ### 2. Prerequisites
-- Docker, k3d, kubectl installed
+- `Docker` `k3d` `kubectl` installed and `k3s-default` cluster running via `k3d`
 
 ***
 
-### 3. **Build, Test & Push Docker Image**
 
-**Build**
-```bash
-docker build -t arkb2023/todo-app:latest .
-```
-**Run**
-```bash
-docker run -d --rm -e PORT=8080 -p 8080:8080 arkb2023/todo-app:latest
-```
-*Output*
-```
-7aa9421ddd9b9d1a7f2671d136df7dbe073cd39d892b698f4bff8ec2a4cf245e
-```
-**Health check**
-```bash
-docker ps |egrep "todo|PORT"
-```
-```
-CONTAINER ID   IMAGE                            COMMAND                  CREATED          STATUS          PORTS                                         NAMES
-7aa9421ddd9b   arkb2023/todo-app:latest         "sh -c 'uvicorn main…"   6 minutes ago    Up 6 minutes    0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp   sweet_heyrovsky
-```
-**Test**
-```bash
-http GET http://localhost:8080/
-```
-*Output*
-```text
-HTTP/1.1 200 OK
-content-length: 41
-content-type: application/json
-date: Wed, 19 Nov 2025 05:09:16 GMT
-server: uvicorn
+### 3. **Build & Push Docker Image**
 
-{
-    "message": "Server started in port 8080"
-}
-```
-**Check container logs**
+**Build the Docker image locally and tag it**
 ```bash
-docker logs -f sweet_heyrovsky
+docker build -t arkb2023/todo-app:1.5 .
+```
+
+**Push the tagged image to the Docker Hub repository**
+```bash
+docker push arkb2023/todo-app:1.5
+```
+> The image is published at:
+https://hub.docker.com/repository/docker/arkb2023/todo-app/tags/1.5
+
+***
+
+### 4. **Deploy to Kubernetes**
+
+**Deploy the application:**
+```bash
+kubectl apply -f manifests/deployment.yaml
+```
+**Check that the deployment was created and is available:**
+```bash
+kubectl get deployments
+```
+**Ensure the pod is running and ready:**
+```bash
+kubectl get pods
+```
+**Inspect Pod Logs for Application Readiness**
+```bash
+kubectl logs -f todo-app-6ccb798d5d-rhr7f
 ```
 *Output*
 ```text
@@ -66,107 +67,41 @@ INFO:     Started server process [7]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
-INFO:     172.17.0.1:34700 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43432 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43530 - "GET / HTTP/1.1" 200 OK
 ```
 
-**Push Docker Image**
+**Configure Access to the Cluster Application**
+Use `kubectl port-forward` to forward the pod port to local machine for access:
 ```bash
-docker push arkb2023/todo-app:latest
+kubectl port-forward todo-app-6ccb798d5d-rhr7f 8080:8080
 ```
 *Output*
 ```text
-The push refers to repository [docker.io/arkb2023/todo-app]
-0e4bc2bd6656: Pushed
-e90b7e24c8b4: Pushed
-22b63e76fde1: Pushed
-1771569cc129: Pushed
-b3dd773c3296: Pushed
-6089e529749f: Pushed
-aeb69cd30fad: Pushed
-0c1aa45fead9: Pushed
-latest: digest: sha256:2615eebda32728e86ff57c9da3d3ab0cbddea37c5c091856baf1d70cec11b8bf size: 856
+Forwarding from 127.0.0.1:8080 -> 8080
+Forwarding from [::1]:8080 -> 8080
+Handling connection for 8080
+Handling connection for 8080
 ```
-> The image is published at:
-https://hub.docker.com/repository/docker/arkb2023/todo-app/tags/latest
 
 ***
 
-### 4. **Deploy to Kubernetes**
+### 5. Verify Application Response in Browser
 
-**Start the k3d Cluster**
-```bash
-k3d cluster start k3s-default
-```
-*Output*
-```text
-INFO[0000] Using the k3d-tools node to gather environment information
-INFO[0000] Starting existing tools node k3d-k3s-default-tools...
-INFO[0000] Starting node 'k3d-k3s-default-tools'
-INFO[0001] Starting new tools node...
-INFO[0001] Starting node 'k3d-k3s-default-tools'
-INFO[0002] Starting cluster 'k3s-default'
-INFO[0002] All servers already running.
-INFO[0002] All agents already running.
-INFO[0002] Starting helpers...
-INFO[0002] Starting node 'k3d-k3s-default-tools'
-INFO[0002] Started cluster 'k3s-default'
-```
-**Apply the Deployment Manifest**
-```bash
-kubectl apply -f manifests/deployment.yaml
-```
-*Output*
-```text
-deployment.apps/todo-app created
-```
-**Verify Created deployment**
-```bash
-kubectl get deployments
-```
-*Output*
-```text
-NAME       READY   UP-TO-DATE   AVAILABLE   AGE
-todo-app   1/1     1            1           72m
-```
-**Verify Pod Running Status**
-```bash
-kubectl get pods
-```
-*Output*
-```text
-NAME                       READY   STATUS    RESTARTS   AGE
-todo-app-dccc58cb4-c42hd   1/1     Running   0          26s
-```
+- **Initial Browser View**  
+Access the application in browser (`http://localhost:8080`) after port-forwarding. The page should display the formatted HTML containing the Application Hash and Request Hash:  
+![Browser view initial load](./images/01-browser-view-1.png) 
 
-**Verify pod logs for app readiness status**
-```bash
-kubectl logs -f todo-app-dccc58cb4-c42hd
-```
-*Output*
-```text
-INFO:     Started server process [8]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
-```
+- **Refresh and Hash Update**  
+Refresh the page to generate a new Request Hash. The Application Hash remains the same (since the app process is persistent), but the Request Hash updates to reflect the new request:  
+![Browser view after refresh](./images/02-browser-view-2.png) 
+
+This testing, ensures `kubectl port-forward` command is active, forwarding the pod port `8080:8080`
 
 ### 5. **Cleanup**
+
 **Delete the Kubernetes Deployment**
 ```bash
 kubectl delete deployment todo-app
 ```
-*Output*
-```text
-deployment.apps "todo-app" deleted from default namespace
-```
-**Stop the k3d Cluster**
-```bash
-k3d cluster stop k3s-default
-```
-*Output*
-```text
-INFO[0000] Stopping cluster 'k3s-default'
-INFO[0012] Stopped cluster 'k3s-default'
-```
-
 ***
