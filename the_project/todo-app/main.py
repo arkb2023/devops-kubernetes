@@ -5,18 +5,21 @@ import hashlib
 import os
 
 app = FastAPI()
-port = os.environ.get("PORT", "8000")
+port = os.environ.get("PORT", "3000")
+print(f"Starting app on port {port}...")
 app_mode = os.environ.get("APP_MODE", "Production")
+print(f"App mode: {app_mode}")
 app_hash = hashlib.sha256(uuid.uuid4().bytes).hexdigest()[:8]
-
+print(f"Application hash: {app_hash}")
 @app.get("/", response_class=HTMLResponse)
 def index() -> HTMLResponse:
     req_hash = hashlib.sha256(uuid.uuid4().bytes).hexdigest()[:8]
+    
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Exercise 1.5 Output</title>
+  <title>Exercise 1.6 Output</title>
   <style>
     body {{
       font-family: Arial, sans-serif;
@@ -53,7 +56,7 @@ def index() -> HTMLResponse:
   </style>
 </head>
 <body>
-  <h2>Exercise: 1.5. The project, step 3</h2>
+  <h2>Exercise: 1.6. The project, step 4</h2>
 
   <div><span class="label">Application Hash:</span><span class="hash">{app_hash}</span></div>
   <div><span class="label">Request Hash:</span><span class="hash">{req_hash}</span></div>

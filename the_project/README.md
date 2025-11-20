@@ -1,11 +1,8 @@
-## Exercise: 1.5. The project, step 3
+## Exercise: 1.6. The project, step 4
 ### Todo App Server Enhancements
 
-- Built upon the application from [Exercise: 1.4. The project, step2](https://github.com/arkb2023/devops-kubernetes/tree/1.4/the_project)
-- Added HTTP server responding with two hashes:
-    - Application Hash: Persistent until process exit
-    - Request Hash: Unique per HTTP request
-- Used kubectl port-forward to forward cluster pod port to localhost
+- Built upon the application from [Exercise: 1.5. The project, step 3](https://github.com/arkb2023/devops-kubernetes/tree/1.5/the_project)
+- Implemented NodePort service configuration [service.yaml](./todo-app/manifests/service.yaml) to enable external access to the Todo App server.
 
 ### 1. **Directory and File Structure**
 ```
@@ -15,93 +12,90 @@ the_project
     ├── Dockerfile
     ├── main.py
     └── manifests
-        └── deployment.yaml
+        ├── deployment.yaml
+        └── service.yaml
 ```
 
 ***
-
 
 ### 2. Prerequisites
 - `Docker` `k3d` `kubectl` installed and `k3s-default` cluster running via `k3d`
 
-***
-
-
-### 3. **Build & Push Docker Image**
-
-**Build the Docker image locally and tag it**
-```bash
-docker build -t arkb2023/todo-app:1.5 .
-```
-
-**Push the tagged image to the Docker Hub repository**
-```bash
-docker push arkb2023/todo-app:1.5
-```
-> The image is published at:
-https://hub.docker.com/repository/docker/arkb2023/todo-app/tags/1.5
+> Used Docker image is published at:
+https://hub.docker.com/repository/docker/arkb2023/todo-app/tags/1.6.2
 
 ***
 
-### 4. **Deploy to Kubernetes**
+### 3. Deploy to Kubernetes
 
-**Deploy the application:**
+**Creates a cluster**
+
+```bash
+k3d cluster create --port 8082:30080@agent:0 -port 8081:80@loadbalancer --agents 2
+```
+Where,  
+
+`--port 8082:30080@agent:0`: Exposes host port 8082 mapped to port 30080 on the first agent node, allowing access through `localhost:8082`.
+
+`-port 8081:80@loadbalancer`: Exposes host port 8081 mapped to the load balancer's port 80.
+
+**Setup the deployment resource:**
 ```bash
 kubectl apply -f manifests/deployment.yaml
 ```
-**Check that the deployment was created and is available:**
+**Setup the service resource:**
 ```bash
-kubectl get deployments
+kubectl apply -f manifests/service.yaml
 ```
 **Ensure the pod is running and ready:**
 ```bash
 kubectl get pods
 ```
+*Output*
+```text
+NAME                            READY   STATUS        RESTARTS   AGE
+todo-app-dep-687cc89674-97k97   1/1     Running       0          23s
+```
+
+**Verify service is accessible inside the cluster**
+
+```bash
+kubectl get service|egrep "todo|PORT"
+```
+*Output*
+```text
+NAME           TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+todo-app-svc   NodePort    10.43.139.174   <none>        1234:30080/TCP   133m
+```
 **Inspect Pod Logs for Application Readiness**
 ```bash
-kubectl logs -f todo-app-6ccb798d5d-rhr7f
+kubectl logs -f todo-app-dep-687cc89674-97k97
 ```
 *Output*
 ```text
 INFO:     Started server process [7]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
-INFO:     127.0.0.1:43432 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:43530 - "GET / HTTP/1.1" 200 OK
-```
-
-**Configure Access to the Cluster Application**
-Use `kubectl port-forward` to forward the pod port to local machine for access:
-```bash
-kubectl port-forward todo-app-6ccb798d5d-rhr7f 8080:8080
-```
-*Output*
-```text
-Forwarding from 127.0.0.1:8080 -> 8080
-Forwarding from [::1]:8080 -> 8080
-Handling connection for 8080
-Handling connection for 8080
+INFO:     Uvicorn running on http://0.0.0.0:3000 (Press CTRL+C to quit)
+Starting app on port 3000...
+App mode: Production
+Application hash: 1789327b
+INFO:     10.42.0.0:54792 - "GET / HTTP/1.1" 200 OK
 ```
 
 ***
 
-### 5. Verify Application Response in Browser
+### 5. Verify Application Response 
 
-- **Initial Browser View**  
-Access the application in browser (`http://localhost:8080`) after port-forwarding. The page should display the formatted HTML containing the Application Hash and Request Hash:  
-![Browser view initial load](./images/01-browser-view-1.png) 
+- Browser access via `http://localhost:8082`
+![Browser view](./images/01-browser-access-on-8082.png) 
 
-- **Refresh and Hash Update**  
-Refresh the page to generate a new Request Hash. The Application Hash remains the same (since the app process is persistent), but the Request Hash updates to reflect the new request:  
-![Browser view after refresh](./images/02-browser-view-2.png) 
-
-This testing, ensures `kubectl port-forward` command is active, forwarding the pod port `8080:8080`
 
 ### 5. **Cleanup**
 
-**Delete the Kubernetes Deployment**
 ```bash
-kubectl delete deployment todo-app
+kubectl delete -f manifests/service.yaml
+kubectl delete -f manifests/deployment.yaml
+k3d cluster delete
 ```
 ***

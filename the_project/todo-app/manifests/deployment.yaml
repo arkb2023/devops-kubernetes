@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: todo-app
+  name: todo-app-dep
 spec:
   replicas: 1
   selector:
@@ -14,11 +14,5 @@ spec:
     spec:
       containers:
         - name: todo-app
-          image: arkb2023/todo-app:1.5  # image name/tag
-          env:
-            - name: PORT
-              value: "8080"               # can be any port you choose
-            - name: APP_MODE
-              value: "Development"      # example additional env variable
-          ports:
-            - containerPort: 8080
+          image: arkb2023/todo-app:1.6.2  # image name/tag
+
