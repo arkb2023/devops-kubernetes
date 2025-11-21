@@ -1,6 +1,11 @@
-FROM alpine:latest
-RUN apk add --no-cache bash
-WORKDIR /usr/src/app
-COPY log_output.sh .
-#CMD ["bash", "/usr/src/app/log_output.sh"]
-ENTRYPOINT ["bash", "/usr/src/app/log_output.sh"]
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY log_output.py .
+
+RUN pip install fastapi uvicorn
+
+ENV PORT=3000
+
+ENTRYPOINT ["sh", "-c", "uvicorn log_output:app --host 0.0.0.0 --port $PORT"]

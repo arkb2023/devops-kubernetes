@@ -1,13 +1,23 @@
-## Log output app *(with manifests)*
+## Exercise 1.7: External Access with Ingress  
+### Log Output App Enhancements  
+
+- Built upon the application from [Exercise 1.3: Declarative approach](https://github.com/arkb2023/devops-kubernetes/tree/1.3/log_output).  
+- Implemented a [Ingress](./manifests/ingress.yaml) resource to route requests with path prefix `/status` to the `log-output-svc` service on port `2345`.  
+- Created the `log-output-svc` [service](./manifests/service.yaml) of type `ClusterIP` on port `2345`, directing traffic to the `log-output` app container listening on port `3000`.  
+- **Result**: The `log-output` app endpoint `/status` is accessible externally at `http://localhost:8081/status` via the ingress controller, which acts as a reverse proxy within the cluster.
+
+***
+
 
 ### 1. **Directory and File Structure**
 <pre>
-.
 ├── Dockerfile
 ├── README.md
-├── log_output.sh
+├── log_output.py
 └── manifests
-    └── deployment.yaml
+    ├── deployment.yaml
+    ├── ingress.yaml
+    └── service.yaml
 </pre>
 
 ***
@@ -15,110 +25,101 @@
 ### 2. Prerequisites
 - Docker, k3d, kubectl installed
 
-### 3. Build and Test locally
-- Follow the steps described in [Exercise 1.1 README](https://github.com/arkb2023/devops-kubernetes/blob/1.1/log_output/README.md)
+### 3. Build and Push the Docker Image to DockerHub
 
-### 4. Push image to DockerHub
-- Follow the steps described in [Exercise 1.1 README](https://github.com/arkb2023/devops-kubernetes/blob/1.1/log_output/README.md)
+```bash
+docker build -t arkb2023/log-output:1.7.2 .
+docker push arkb2023/log-output:1.7.2
+```
+> Docker image published at: https://hub.docker.com/repository/docker/arkb2023/log-output/tags/1.7.2
+
+### 4. **Deploy to Kubernetes**
+
+**Create cluster**
+
+```bash
+k3d cluster create --port 8082:30080@agent:0 -p 8081:80@loadbalancer --agents 2
+```
+
+Where,  
+
+`--port 8082:30080@agent:0`: Exposes host port 8082 mapped to port 30080 on the first agent node, allowing access through `localhost:8082`.
+
+`-p 8081:80@loadbalancer`: Exposes host port 8081 mapped to the load balancer's port 80.
 
 ---
 
-### 5. **Deploy to Kubernetes**
-
-**Start the k3d Cluster**
+**Apply the `Deployment` `Service` and `Ingress` Manifests**
 ```bash
-k3d cluster start
+kubectl apply -f manifests/
 ```
-```Output
-INFO[0000] Using the k3d-tools node to gather environment information
-INFO[0000] Starting existing tools node k3d-k3s-default-tools...
-INFO[0000] Starting node 'k3d-k3s-default-tools'
-INFO[0000] Starting new tools node...
-INFO[0000] Starting node 'k3d-k3s-default-tools'
-INFO[0002] Starting cluster 'k3s-default'
-INFO[0002] Starting servers...
-INFO[0002] Starting node 'k3d-k3s-default-server-0'
-INFO[0009] Starting agents...
-INFO[0009] Starting node 'k3d-k3s-default-agent-1'
-INFO[0009] Starting node 'k3d-k3s-default-agent-0'
-INFO[0012] Starting helpers...
-INFO[0012] Starting node 'k3d-k3s-default-tools'
-INFO[0012] Starting node 'k3d-k3s-default-serverlb'
-INFO[0018] Injecting records for hostAliases (incl. host.k3d.internal) and for 5 network members into CoreDNS configmap...
-INFO[0021] Started cluster 'k3s-default'
-```
-
-**Check the running containers**
-```bash
-docker ps
-```
-```Output
-CONTAINER ID   IMAGE                            COMMAND                  CREATED         STATUS         PORTS                     NAMES
-511018adc2e4   ghcr.io/k3d-io/k3d-tools:5.8.3   "/app/k3d-tools noop"    4 minutes ago   Up 4 minutes                             k3d-k3s-default-tools
-baafad67dc35   ghcr.io/k3d-io/k3d-proxy:5.8.3   "/bin/sh -c nginx-pr…"   4 hours ago     Up 3 minutes   0.0.0.0:37263->6443/tcp   k3d-k3s-default-serverlb
-e958a8608497   rancher/k3s:v1.31.5-k3s1         "/bin/k3d-entrypoint…"   4 hours ago     Up 3 minutes                             k3d-k3s-default-agent-1
-cdd430d6ba86   rancher/k3s:v1.31.5-k3s1         "/bin/k3d-entrypoint…"   4 hours ago     Up 3 minutes                             k3d-k3s-default-agent-0
-4a99bd2617c1   rancher/k3s:v1.31.5-k3s1         "/bin/k3d-entrypoint…"   4 hours ago     Up 4 minutes                             k3d-k3s-default-server-0
-```
-
----
-
-**Apply the Deployment Manifest**
-- Refer deployment manifest: [deployment.yaml](./manifests/deployment.yaml)
-  > In deployment.yaml, register the DockerHub repo image `arkb2023/log-output:latest`
-
-```bash
-kubectl apply -f manifests/deployment.yaml
-```
-```Output
+*Output*
+```text
 deployment.apps/log-output-dep created
+ingress.networking.k8s.io/dwk-ingress created
+service/log-output-svc created
 ```
 
-**Check deployments**
+**Verify that the manifests are operational**
 ```bash
-kubectl get deployments
+kubectl get deploy,svc,ing
 ```
-```Output
-NAME                READY   UP-TO-DATE   AVAILABLE   AGE
-log-output-dep      1/1     1            1           18s
+*Output*
+```text
+NAME                             READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/log-output-dep   1/1     1            1           99m
+
+NAME                     TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
+service/kubernetes       ClusterIP   10.43.0.1       <none>        443/TCP    100m
+service/log-output-svc   ClusterIP   10.43.211.233   <none>        2345/TCP   99m
+
+NAME                                    CLASS     HOSTS   ADDRESS                            PORTS   AGE
+ingress.networking.k8s.io/dwk-ingress   traefik   *       172.18.0.3,172.18.0.4,172.18.0.5   80      99m
 ```
 
+**Inspect Pod logs for application readiness**
 ```bash
-kubectl get pods
+kubectl logs -f log-output-dep-74bbd57c65-xjgqd
 ```
-```Output
-NAME                                 READY   STATUS    RESTARTS   AGE
-textlog-output-dep-66b86f6d8b-q9fwg      1/1     Running   0          24s
-```
-
-**Verify logs**
-```bash
-kubectl logs -f textlog-output-dep-66b86f6d8b-q9fwg
-```
-```Output
-2025-11-19T09:00:26+00:00: 9106198b-8e35-4eea-9a5b-e6376bda92d8
-2025-11-19T09:00:31+00:00: 9106198b-8e35-4eea-9a5b-e6376bda92d8
-2025-11-19T09:00:36+00:00: 9106198b-8e35-4eea-9a5b-e6376bda92d8
+*Output*
+```text
+INFO:     Started server process [7]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:3000 (Press CTRL+C to quit)
+INFO:     10.42.2.4:46088 - "GET /status HTTP/1.1" 200 OK
+INFO:     10.42.2.4:36226 - "GET /status HTTP/1.1" 200 OK
 ```
 
+### 5. Verify Application Endpoint Response  
+Access the application endpoint in a browser at: `http://localhost:8081/status`  
+![Browser application endpoint accessible](./images/01-browser-access-endpoint.png) 
 
 ### 6. **Cleanup**
-**Delete the Kubernetes Deployment**
+
+**Delete the `Deployment` `Service` and `Ingress` Resources**  
+
 ```bash
-kubectl delete deployment log-output-dep
+kubectl delete -f manifests/
 ```
 *Output*
 ```text
 deployment.apps "log-output-dep" deleted from default namespace
+ingress.networking.k8s.io "dwk-ingress" deleted from default namespace
+service "log-output-svc" deleted from default namespace
 ```
-**Stop the k3d Cluster**
+
+**Stop the k3d Cluster**  
 ```bash
-k3d cluster stop k3s-default
+k3d cluster delete k3s-default
 ```
 *Output*
 ```text
-INFO[0000] Stopping cluster 'k3s-default'
-INFO[0012] Stopped cluster 'k3s-default'
+INFO[0000] Deleting cluster 'k3s-default'
+INFO[0003] Deleting cluster network 'k3d-k3s-default'
+INFO[0003] Deleting 1 attached volumes...
+INFO[0003] Removing cluster details from default kubeconfig...
+INFO[0003] Removing standalone kubeconfig file (if there is one)...
+INFO[0003] Successfully deleted cluster k3s-default!
 ```
-
 ---
