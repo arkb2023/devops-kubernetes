@@ -12,6 +12,18 @@ spec:
       labels:
         app: log-output
     spec:
+      volumes:
+        - name: shared-image
+          emptyDir: {}    
       containers:
-        - name: log-output
-          image: arkb2023/log-output::1.7.2
+        - name: log-generator
+          image: arkb2023/log-generator:1.10.2
+          volumeMounts:
+          - name: shared-image
+            mountPath: /usr/src/app/files
+        - name: log-reader
+          image: arkb2023/log-reader:1.10.3
+          volumeMounts:
+          - name: shared-image
+            mountPath: /usr/src/app/files
+
