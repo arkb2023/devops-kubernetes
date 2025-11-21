@@ -11,6 +11,7 @@
 
 ### 1. **Directory and File Structure**
 <pre>
+log_output
 ├── Dockerfile
 ├── README.md
 ├── log_output.py
