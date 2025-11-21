@@ -1,8 +1,11 @@
-## Exercise: 1.6. The project, step 4
+## Exercise: 1.8. The project, step 5
 ### Todo App Server Enhancements
 
-- Built upon the application from [Exercise: 1.5. The project, step 3](https://github.com/arkb2023/devops-kubernetes/tree/1.5/the_project)
-- Implemented NodePort service configuration [service.yaml](./todo-app/manifests/service.yaml) to enable external access to the Todo App server.
+- Built upon the application from [Exercise: 1.6. The project, step 4](https://github.com/arkb2023/devops-kubernetes/tree/1.6/the_project)
+- Implemented a [Ingress](./todo-app/manifests/ingress.yaml) resource to route requests with path prefix `/` to the `todo-app-svc` service on port `1234`.  
+- Modified the `todo-app-svc` [service](./todo-app/manifests/service.yaml) type to `ClusterIP` on port `1234`, directing traffic to the `todo-app` app container listening on port `3000`.  
+- **Result**: The `todo-app` app endpoint `/` is accessible externally at `http://localhost:8082/` via the ingress controller, which acts as a reverse proxy within the cluster.
+
 
 ### 1. **Directory and File Structure**
 ```
@@ -13,16 +16,24 @@ the_project
     ├── main.py
     └── manifests
         ├── deployment.yaml
+        ├── ingress.yaml
         └── service.yaml
 ```
 
 ***
 
 ### 2. Prerequisites
-- `Docker` `k3d` `kubectl` installed and `k3s-default` cluster running via `k3d`
+- `Docker` `k3d` `kubectl` installed
 
-> Used Docker image is published at:
-https://hub.docker.com/repository/docker/arkb2023/todo-app/tags/1.6.2
+
+
+### 3. Build and Push the Docker Image to DockerHub
+
+```bash
+docker build -t arkb2023/log-output:1.8.1 .
+docker push arkb2023/log-output:1.8.1
+```
+> Docker image published at: https://hub.docker.com/repository/docker/arkb2023/todo-app/tags/1.8.1
 
 ***
 
@@ -31,45 +42,66 @@ https://hub.docker.com/repository/docker/arkb2023/todo-app/tags/1.6.2
 **Creates a cluster**
 
 ```bash
-k3d cluster create --port 8082:30080@agent:0 -port 8081:80@loadbalancer --agents 2
+k3d cluster create --port 8082:80@loadbalancer --agents 2
 ```
 Where,  
 
-`--port 8082:30080@agent:0`: Exposes host port 8082 mapped to port 30080 on the first agent node, allowing access through `localhost:8082`.
+`-port 8082:80@loadbalancer`: Exposes host port 8082 mapped to the load balancer's port 80.
 
-`-port 8081:80@loadbalancer`: Exposes host port 8081 mapped to the load balancer's port 80.
+**Verify the loadbalancer port mappings**
 
-**Setup the deployment resource:**
 ```bash
-kubectl apply -f manifests/deployment.yaml
+docker port k3d-k3s-default-serverlb
 ```
-**Setup the service resource:**
+*Output*
+```text
+80/tcp -> 0.0.0.0:8082
+80/tcp -> [::]:8082
+6443/tcp -> 0.0.0.0:39245
+```
+
+**Apply the `Deployment` `Service` and `Ingress` Manifests**
 ```bash
-kubectl apply -f manifests/service.yaml
+kubectl create -f the_project/todo-app/manifests/
 ```
+*Output*
+```text
+deployment.apps/todo-app-dep created
+ingress.networking.k8s.io/dwk-todo-app-ingress created
+service/todo-app-svc created
+```
+
+**Verify that the manifests are operational**  
+```bash
+kubectl get deploy,svc,ing
+```
+*Output*
+```text
+NAME                           READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/todo-app-dep   0/1     1            0           13s
+
+NAME                   TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
+service/kubernetes     ClusterIP   10.43.0.1       <none>        443/TCP    13m
+service/todo-app-svc   ClusterIP   10.43.184.213   <none>        1234/TCP   13s
+
+NAME                                             CLASS     HOSTS   ADDRESS                            PORTS   AGE
+ingress.networking.k8s.io/dwk-todo-app-ingress   traefik   *       172.18.0.3,172.18.0.4,172.18.0.5   80      13s
+```
+
 **Ensure the pod is running and ready:**
+
 ```bash
 kubectl get pods
-```
 *Output*
 ```text
-NAME                            READY   STATUS        RESTARTS   AGE
-todo-app-dep-687cc89674-97k97   1/1     Running       0          23s
+NAME                            READY   STATUS    RESTARTS   AGE
+todo-app-dep-5d6b7f9d47-9m5cs   1/1     Running   0          17s
 ```
 
-**Verify service is accessible inside the cluster**
 
-```bash
-kubectl get service|egrep "todo|PORT"
-```
-*Output*
-```text
-NAME           TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
-todo-app-svc   NodePort    10.43.139.174   <none>        1234:30080/TCP   133m
-```
 **Inspect Pod Logs for Application Readiness**
 ```bash
-kubectl logs -f todo-app-dep-687cc89674-97k97
+kubectl logs -f todo-app-dep-5d6b7f9d47-9m5cs
 ```
 *Output*
 ```text
@@ -79,23 +111,41 @@ INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:3000 (Press CTRL+C to quit)
 Starting app on port 3000...
 App mode: Production
-Application hash: 1789327b
-INFO:     10.42.0.0:54792 - "GET / HTTP/1.1" 200 OK
+Application hash: b8ad247c
+INFO:     10.42.0.4:34948 - "GET / HTTP/1.1" 200 OK
 ```
 
 ***
 
-### 5. Verify Application Response 
-
-- Browser access via `http://localhost:8082`
-![Browser view](./images/01-browser-access-on-8082.png) 
+### 5. Verify Application Endpoint Response  
+Access the application endpoint in a browser at: `http://localhost:8082`  
+![Browser application endpoint accessible](./images/01-browser-access-on-8082.png) 
 
 
 ### 5. **Cleanup**
 
+**Delete the `Deployment` `Service` and `Ingress` Resources**  
 ```bash
-kubectl delete -f manifests/service.yaml
-kubectl delete -f manifests/deployment.yaml
-k3d cluster delete
+kubectl delete -f the_project/todo-app/manifests/
+```
+*Output*
+```text
+deployment.apps "todo-app-dep" deleted from default namespace
+ingress.networking.k8s.io "dwk-todo-app-ingress" deleted from default namespace
+service "todo-app-svc" deleted from default namespace
+```
+
+**Stop the k3d Cluster**  
+```bash
+k3d cluster delete k3s-default
+```
+*Output*
+```text
+INFO[0000] Deleting cluster 'k3s-default'
+INFO[0003] Deleting cluster network 'k3d-k3s-default'
+INFO[0003] Deleting 1 attached volumes...
+INFO[0003] Removing cluster details from default kubeconfig...
+INFO[0003] Removing standalone kubeconfig file (if there is one)...
+INFO[0003] Successfully deleted cluster k3s-default!
 ```
 ***
