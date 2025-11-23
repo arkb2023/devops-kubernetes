@@ -1,5 +1,7 @@
 from fastapi import FastAPI
+from fastapi.responses import PlainTextResponse
 from datetime import datetime
+import uuid
 import os
 import logging
 
@@ -9,23 +11,33 @@ app = FastAPI()
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# read that file (/tmp/output.log written by ../generator/generator.py program 
-# and provide the content in the HTTP GET endpoint for the user to see
+# Get log directory from environment variable, default to "/usr/src/app/files"
+# Shared volume mount path where Ping-pong app writes request count
+shared_dir = os.getenv("LOG_DIR", "/usr/src/app/files")
+request_count_file = os.path.join(shared_dir, "pingpong-requests.txt")
 
-log_dir = os.getenv("LOG_DIR", "/usr/src/app/files")
-log_file = os.getenv("LOG_FILE", "output.log")
-log_path = os.path.join(log_dir, log_file)
-
-logger.debug(f"Log file path: {log_path}")
-
-@app.get("/")
-def get_logs():
-    print(f"DEBUG: Request received at {datetime.now().isoformat()}")
+def read_request_count():
     try:
-        with open(log_path, "r") as f:
-            content = f.read()
-        print(f"DEBUG: Successfully read {len(content)} bytes from {log_path}")
-        return content.splitlines()
+        with open(request_count_file, "r") as f:
+            count = f.read().strip()
+            logger.debug(f"DEBUG: {count} ping-pong requests read from {request_count_file}")
+            return count
     except FileNotFoundError:
-        print(f"DEBUG: Log file not found at {log_path}")
-        return {"error": "Log file not found"}
+        logger.error(f"ERROR: {request_count_file} does not exist.")
+        return "0"  # Return zero if file is missing initially
+
+@app.get("/", response_class=PlainTextResponse)
+def read_logs():
+    # Generate current timestamp and random string (UUID)
+    timestamp = datetime.utcnow().isoformat() + "Z"
+    random_id = str(uuid.uuid4())
+    logger.debug(f"DEBUG: Request received at {timestamp}: {random_id}")
+
+    # Read persisted ping-pong request count
+    request_count = read_request_count()
+
+    logger.debug(f"DEBUG: Successfully read {request_count} ping-pong requests from {request_count_file}")
+    # Format output as specified
+    output = f"{timestamp}: {random_id}.\nPing / Pongs: {request_count}\n"
+    logger.debug(f"DEBUG: Returning output:\n{output}")
+    return output

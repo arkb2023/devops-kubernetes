@@ -12,6 +12,14 @@ spec:
       labels:
         app: ping-pong
     spec:
+      volumes:
+        - name: shared-image
+          persistentVolumeClaim:
+            claimName: local-pv-claim
       containers:
         - name: ping-pong
-          image: arkb2023/ping-pong:1.9.3
+          image: arkb2023/ping-pong:1.11.2
+          volumeMounts:
+          - name: shared-image
+            mountPath: /usr/src/app/files
+
