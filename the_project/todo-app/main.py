@@ -34,6 +34,7 @@ class ImageCache:
 
   def _load_metadata(self):
       if os.path.exists(self.metadata_path):
+          logger.debug(f"Loading metadata from {self.metadata_path}")
           try:
               with open(self.metadata_path, "r") as f:
                   data = json.load(f)
@@ -41,10 +42,14 @@ class ImageCache:
               self.access_count = data.get("access_count", 0)
               self.last_access_time = data.get("last_access_time", None)
               self.download_timestamp = data.get("download_timestamp", None)
+              self.image_access_count = data.get("image_access_count", 0)
+              logger.debug(f"Loaded metadata: {data}")
+
           except Exception as e:
-              print(f"Failed to load cache metadata: {e}")
+              logger.error(f"Failed to load cache metadata: {e}")
               self._reset_metadata()
       else:
+          logger.debug(f"No metadata file found at {self.metadata_path}, initializing defaults")
           self._reset_metadata()
 
   def _reset_metadata(self):
@@ -71,12 +76,10 @@ class ImageCache:
 
   def record_access(self):
       self.access_count += 1
+      self.image_access_count += 1
       self.last_access_time = time.time()
       self._save_metadata()
 
-  def record_image_access(self):
-      self.image_access_count += 1
-      self._save_metadata()
   
   def is_cache_expired(self) -> bool:
       """Check if cache is expired or missing."""
@@ -117,9 +120,9 @@ async def lifespan(app: FastAPI):
 
     # Use explicit environment variable default inline
     cache_dir = os.getenv("CACHE_DIR", "./cache")
-    cache = ImageCache(cache_dir=cache_dir, ttl=10)
+    cache = ImageCache(cache_dir=cache_dir)
     logger.debug(f"Lifespan startup: Cache initialized with dir {cache_dir}")
-    # startup logic here
+    
     if cache.is_cache_expired():
         logger.debug("Lifespan startup: Cache is expired on startup, fetching new image")
         fetched = await cache.fetch_and_cache_image()
@@ -166,6 +169,7 @@ async def main_page():
   expiry_time = download_time + cache.ttl if download_time else None
   last_access = cache.last_access_time
   access_count = cache.access_count
+  image_access_count = cache.access_count
   grace_status = "Grace period" if cache.grace_period_used else ("Valid" if download_time and time.time() < expiry_time else "Expired")  
 
   html_content = f"""
@@ -182,7 +186,7 @@ async def main_page():
       Image Download time: {time.ctime(download_time) if download_time else 'N/A'}<br/>
       Image Expiry time: {time.ctime(expiry_time) if expiry_time else 'N/A'}<br/>
       Site Access count: {access_count}<br/>
-      Image Access count: {getattr(cache, 'image_access_count', 0)}<br/>
+      Image Access count: {image_access_count}<br/>
       Last Site Access: {time.ctime(last_access) if last_access else 'N/A'}<br/>
       Status: {grace_status}<br/>
     </div>
@@ -195,8 +199,5 @@ async def main_page():
 async def get_image():
   if cache is None or not os.path.exists(cache.image_path):
       raise HTTPException(status_code=404, detail="Image not available")
-  # cache.image_access_count = getattr(cache, "image_access_count", 0) + 1
-  cache.record_image_access()
-  cache._save_metadata()
   return FileResponse(cache.image_path, media_type="image/jpeg")
   

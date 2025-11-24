@@ -12,7 +12,13 @@ spec:
       labels:
         app: todo-app
     spec:
+      volumes:
+        - name: shared-image
+          persistentVolumeClaim:
+            claimName: local-pv-claim
       containers:
-        - name: todo-app
-          image: arkb2023/todo-app:1.8.1  # image name/tag
-
+        - name: todo-app-container
+          image: arkb2023/todo-app:1.12.3  # image name/tag
+          volumeMounts:
+          - name: shared-image
+            mountPath: /usr/src/app/files
