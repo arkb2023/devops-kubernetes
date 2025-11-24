@@ -39,3 +39,4 @@ secrets/
 *pycache*
 *.pyc*
 *faq*
+cache/
