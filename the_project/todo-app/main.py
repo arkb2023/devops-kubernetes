@@ -24,7 +24,8 @@ class ImageCache:
       self.image_path = os.path.join(cache_dir, "cached_image.jpg")
       self.metadata_path = os.path.join(cache_dir, "cache_metadata.json")
       self.grace_period_used = False
-      self.access_count = 0
+      self.access_count = 0 # total access count
+      self.image_access_count = 0 # per image access count
       self.last_access_time = None
       self.download_timestamp = None  # Timestamp of image fetch
       os.makedirs(cache_dir, exist_ok=True)
@@ -51,6 +52,7 @@ class ImageCache:
       self.access_count = 0
       self.last_access_time = None
       self.download_timestamp = None
+      self.image_access_count = 0
       self._save_metadata()
 
   def _save_metadata(self):
@@ -59,6 +61,7 @@ class ImageCache:
           "access_count": self.access_count,
           "last_access_time": self.last_access_time,
           "download_timestamp": self.download_timestamp,
+          "image_access_count": self.image_access_count,
       }
       try:
           with open(self.metadata_path, "w") as f:
@@ -71,6 +74,10 @@ class ImageCache:
       self.last_access_time = time.time()
       self._save_metadata()
 
+  def record_image_access(self):
+      self.image_access_count += 1
+      self._save_metadata()
+  
   def is_cache_expired(self) -> bool:
       """Check if cache is expired or missing."""
       if not os.path.exists(self.image_path) or self.download_timestamp is None:
@@ -171,12 +178,13 @@ async def main_page():
     <hr/>
     <p>DevOps with Kubernetes 2025</p>
     <div style="position: fixed; bottom: 10px; right: 10px; font-size: 12px; color: #999; border: 1px solid #ccc; padding: 6px;">
-        <b>Image Cache Metadata</b><br/>
-        Download time: {time.ctime(download_time) if download_time else 'N/A'}<br/>
-        Expiry time: {time.ctime(expiry_time) if expiry_time else 'N/A'}<br/>
-        Access count: {access_count}<br/>
-        Last access: {time.ctime(last_access) if last_access else 'N/A'}<br/>
-        Status: {grace_status}<br/>
+      <b>Image Cache Metadata</b><br/>
+      Image Download time: {time.ctime(download_time) if download_time else 'N/A'}<br/>
+      Image Expiry time: {time.ctime(expiry_time) if expiry_time else 'N/A'}<br/>
+      Site Access count: {access_count}<br/>
+      Image Access count: {getattr(cache, 'image_access_count', 0)}<br/>
+      Last Site Access: {time.ctime(last_access) if last_access else 'N/A'}<br/>
+      Status: {grace_status}<br/>
     </div>
     </body>
     </html>
@@ -187,5 +195,8 @@ async def main_page():
 async def get_image():
   if cache is None or not os.path.exists(cache.image_path):
       raise HTTPException(status_code=404, detail="Image not available")
+  # cache.image_access_count = getattr(cache, "image_access_count", 0) + 1
+  cache.record_image_access()
+  cache._save_metadata()
   return FileResponse(cache.image_path, media_type="image/jpeg")
   
