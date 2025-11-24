@@ -124,6 +124,7 @@ persistentvolumeclaim/local-pv-claim created
 ```bash
 kubectl get pods
 ```
+*Output*
 ```text
 NAME                             READY   STATUS    RESTARTS   AGE
 log-output-dep-5d7749fbd-2v7qg   1/1     Running   0          94s

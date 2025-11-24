@@ -180,7 +180,21 @@ async def main_page():
     <hr/>
     <img src="/image" alt="Random Image"/>
     <hr/>
+
+    <!-- New Todo input section -->
+    <div>
+      <input type="text" id="todoInput" maxlength="140" placeholder="Enter new todo (max 140 chars)" />
+      <button id="createTodoButton">Create todo</button>
+    </div>
+
+    <!-- Hardcoded Todo List -->
+    <ul id="todoList">
+      <li>hardcoded todo 1</li>
+      <li>hardcoded todo 2</li>
+      <li>hardcoded todo 3</li>
+    </ul>    
     <p>DevOps with Kubernetes 2025</p>
+
     <div style="position: fixed; bottom: 10px; right: 10px; font-size: 12px; color: #999; border: 1px solid #ccc; padding: 6px;">
       <b>Image Cache Metadata</b><br/>
       Image Download time: {time.ctime(download_time) if download_time else 'N/A'}<br/>

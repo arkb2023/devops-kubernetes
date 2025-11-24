@@ -18,7 +18,7 @@ spec:
             claimName: local-pv-claim
       containers:
         - name: todo-app-container
-          image: arkb2023/todo-app:1.12.3  # image name/tag
+          image: arkb2023/todo-app:1.13.1  # image name/tag
           volumeMounts:
           - name: shared-image
             mountPath: /usr/src/app/files
