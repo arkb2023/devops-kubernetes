@@ -12,10 +12,10 @@ spec:
       labels:
         app: log-output
     spec:
-      volumes:
-        - name: shared-image
-          persistentVolumeClaim:
-            claimName: local-pv-claim
+      # volumes:
+      #   - name: shared-image
+      #     persistentVolumeClaim:
+      #       claimName: local-pv-claim
       containers:
         # - name: log-generator
         #   image: arkb2023/log-generator:1.10.2
@@ -23,8 +23,8 @@ spec:
         #   - name: shared-image
         #     mountPath: /usr/src/app/files
         - name: log-reader
-          image: arkb2023/log-reader:1.11.2
-          volumeMounts:
-          - name: shared-image
-            mountPath: /usr/src/app/files
+          image: arkb2023/log-reader:2.2
+          # volumeMounts:
+          # - name: shared-image
+          #   mountPath: /usr/src/app/files
 

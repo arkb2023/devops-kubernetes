@@ -13,3 +13,10 @@ spec:
             name: ping-pong-svc
             port:
               number: 3456
+      - path: /pings
+        pathType: Prefix
+        backend:
+          service:
+            name: ping-pong-svc
+            port:
+              number: 3456

@@ -4,40 +4,30 @@ from datetime import datetime
 import uuid
 import os
 import logging
+import httpx
 
-app = FastAPI()
-
-# Configure logger once at module level
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# Get log directory from environment variable, default to "/usr/src/app/files"
-# Shared volume mount path where Ping-pong app writes request count
-shared_dir = os.getenv("LOG_DIR", "/usr/src/app/files")
-request_count_file = os.path.join(shared_dir, "pingpong-requests.txt")
+async def lifespan(app: FastAPI):
+    """Lifespan context manager to initialize resources on startup."""
+    logger.debug(f"Lifespan startup: initializing resources")
+    yield
+    logger.debug(f"Lifespan shutdown: cleaning up resources")
 
-def read_request_count():
-    try:
-        with open(request_count_file, "r") as f:
-            count = f.read().strip()
-            logger.debug(f"DEBUG: {count} ping-pong requests read from {request_count_file}")
-            return count
-    except FileNotFoundError:
-        logger.error(f"ERROR: {request_count_file} does not exist.")
-        return "0"  # Return zero if file is missing initially
+app = FastAPI(lifespan=lifespan)
 
-@app.get("/", response_class=PlainTextResponse)
-def read_logs():
-    # Generate current timestamp and random string (UUID)
+@app.get("/")
+async def root():
+    async with httpx.AsyncClient() as client:
+        # export PINGPONG_APP_URL=http://ping-pong-svc:3456/pings
+        pingpong_url = os.getenv("PINGPONG_APP_URL", "http://localhost:3000/pings")
+        logger.debug(f"Root endpoint: fetching from {pingpong_url}")
+        pong_response = await client.get(pingpong_url)
+        logging.debug(f"Root endpoint: received response with status {pong_response.status_code}")
+        pong_text = pong_response.text
+        logger.debug(f"Root endpoint: response text {pong_text}")
+
     timestamp = datetime.utcnow().isoformat() + "Z"
-    random_id = str(uuid.uuid4())
-    logger.debug(f"DEBUG: Request received at {timestamp}: {random_id}")
-
-    # Read persisted ping-pong request count
-    request_count = read_request_count()
-
-    logger.debug(f"DEBUG: Successfully read {request_count} ping-pong requests from {request_count_file}")
-    # Format output as specified
-    output = f"{timestamp}: {random_id}.\nPing / Pongs: {request_count}\n"
-    logger.debug(f"DEBUG: Returning output:\n{output}")
-    return output
+    unique_id = str(uuid.uuid4())
+    return PlainTextResponse(f"{timestamp}: {unique_id}.\n{pong_text}")
