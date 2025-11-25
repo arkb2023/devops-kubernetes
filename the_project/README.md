@@ -97,7 +97,7 @@ This table summarizes the routing setup in the Kubernetes cluster that enables r
 - `Docker` `k3d` `kubectl` installed
 
 ### 3. Build and Push the Docker Image to DockerHub
-export PROJECT_ROOT=
+
 ```bash
 
 cd todo_backend
