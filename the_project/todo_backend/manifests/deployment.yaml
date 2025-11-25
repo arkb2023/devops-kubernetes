@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-backend-dep
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: todo-backend
+  template:
+    metadata:
+      labels:
+        app: todo-backend
+    spec:
+      volumes:
+        - name: shared-image
+          persistentVolumeClaim:
+            claimName: local-pv-claim
+      containers:
+        - name: todo-backend-container
+          image: arkb2023/todo-backend:2.2  # image name/tag
+          volumeMounts:
+          - name: shared-image
+            mountPath: /usr/src/app/files
