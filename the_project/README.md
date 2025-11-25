@@ -110,7 +110,7 @@ docker push arkb2023/todo-app:2.5
 
 ```
 > Docker image published at:  
-> https://hub.docker.com/repository/docker/arkb2023/todo-app/tags/2.5
+> https://hub.docker.com/repository/docker/arkb2023/todo-app/tags/2.5  
 > https://hub.docker.com/repository/docker/arkb2023/todo-backend/tags/2.2
 
 
