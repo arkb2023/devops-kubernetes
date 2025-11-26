@@ -7,13 +7,17 @@ import time
 import logging
 from app.cache import ImageCache
 
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+LOG_FORMAT = os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
+logging.basicConfig(level=LOG_LEVEL, format=LOG_FORMAT)
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 backend_url = os.getenv("TODO_BACKEND_URL", "http://127.0.0.1:8000")
-
+logger.info(f"frontend.py module loaded: LOG_LEVEL={LOG_LEVEL}, LOG_FORMAT={LOG_FORMAT}, BACKEND_URL={backend_url}")
+logger.info(f"frontend.py: backend_url set to {backend_url}")
 async def lifespan(app: FastAPI):
     """Fetch image on startup if cache is expired, initialize cache with metadata support."""
     global cache
@@ -21,20 +25,20 @@ async def lifespan(app: FastAPI):
     # Use explicit environment variable default inline
     cache_dir = os.getenv("CACHE_DIR", "./cache")
     cache = ImageCache(cache_dir=cache_dir)
-    logger.debug(f"Lifespan startup: Cache initialized with dir {cache_dir}")
+    logger.info(f"Lifespan startup: Cache initialized with dir {cache_dir}")
     
     if cache.is_cache_expired():
-        logger.debug("Lifespan startup: Cache is expired on startup, fetching new image")
+        logger.info("Lifespan startup: Cache is expired on startup, fetching new image")
         fetched = await cache.fetch_and_cache_image()
         if fetched:
-            logger.debug("Lifespan startup: Image fetched and cached successfully on startup")
+            logger.info("Lifespan startup: Image fetched and cached successfully on startup")
         else:
             logger.error("Lifespan startup: Failed to fetch image on startup")
     else:
-        logger.debug("Lifespan startup: Cache valid on startup, using existing image")
+        logger.info("Lifespan startup: Cache valid on startup, using existing image")
     yield  # Lifespan yield point; app runs here
     # TODO: shutdown logic here
-    logger.debug("Lifespan shutdown: Application is shutting down")
+    logger.info("Lifespan shutdown: Application is shutting down")
 
 # Cache global is optional but good to explicitly declare
 cache: ImageCache | None = None  # type hint for clarity (Python 3.10+)
@@ -47,18 +51,18 @@ async def main_page(request: Request):
     raise HTTPException(status_code=500, detail="Cache not initialized")
   
   if cache.is_cache_expired():
-    logger.debug("main_page endpoint: Cache expired")
+    logger.info("main_page endpoint: Cache expired")
     if not cache.grace_period_used and os.path.exists(cache.image_path):
-      logger.debug("main_page endpoint: Serving cached image under grace period")
+      logger.info("main_page endpoint: Serving cached image under grace period")
       cache.grace_period_used = True
       cache._save_metadata()  # Persist grace period change
     else:
-      logger.debug("main_page endpoint: Fetching new image as grace period used or no cached image")
+      logger.info("main_page endpoint: Fetching new image as grace period used or no cached image")
       success = await cache.fetch_and_cache_image()
       if not success:
           logger.error("main_page endpoint: Failed to fetch new image")
   else:
-      logger.debug("main_page endpoint: Cache valid, serving cached image")
+      logger.info("main_page endpoint: Cache valid, serving cached image")
   
   cache.record_access()
   

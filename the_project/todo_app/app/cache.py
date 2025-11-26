@@ -3,8 +3,13 @@ import time
 import json
 import logging
 import aiohttp
-logger = logging.getLogger(__name__)
 
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+LOG_FORMAT = os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
+logging.basicConfig(level=LOG_LEVEL, format=LOG_FORMAT)
+logger = logging.getLogger(__name__)
+logger.info(f"cache,py module loaded: LOG_LEVEL={LOG_LEVEL}, LOG_FORMAT={LOG_FORMAT}")
 class ImageCache:
   def __init__(self, cache_dir: str = "./cache", ttl: int = 600):
       self.cache_dir = cache_dir
@@ -18,11 +23,11 @@ class ImageCache:
       self.download_timestamp = None  # Timestamp of image fetch
       os.makedirs(cache_dir, exist_ok=True)
       self._load_metadata()
-      logger.debug(f"ImageCache initialized with cache_dir: {cache_dir}, ttl: {ttl}s")
+      logger.info(f"ImageCache initialized with cache_dir: {cache_dir}, ttl: {ttl}s")
 
   def _load_metadata(self):
       if os.path.exists(self.metadata_path):
-          logger.debug(f"Loading metadata from {self.metadata_path}")
+          logger.info(f"Loading metadata from {self.metadata_path}")
           try:
               with open(self.metadata_path, "r") as f:
                   data = json.load(f)
@@ -31,13 +36,13 @@ class ImageCache:
               self.last_access_time = data.get("last_access_time", None)
               self.download_timestamp = data.get("download_timestamp", None)
               self.image_access_count = data.get("image_access_count", 0)
-              logger.debug(f"Loaded metadata: {data}")
+              logger.info(f"Loaded metadata: {data}")
 
           except Exception as e:
               logger.error(f"Failed to load cache metadata: {e}")
               self._reset_metadata()
       else:
-          logger.debug(f"No metadata file found at {self.metadata_path}, initializing defaults")
+          logger.info(f"No metadata file found at {self.metadata_path}, initializing defaults")
           self._reset_metadata()
 
   def _reset_metadata(self):
@@ -72,17 +77,19 @@ class ImageCache:
   def is_cache_expired(self) -> bool:
       """Check if cache is expired or missing."""
       if not os.path.exists(self.image_path) or self.download_timestamp is None:
-        logger.debug("Cache expired: Missing image or download timestamp")
+        logger.info("Cache expired: Missing image or download timestamp")
         return True
       
       age = time.time() - self.download_timestamp
-      logger.debug(f"Cache age: {age}s, TTL: {self.ttl}s, Expired: {age > self.ttl}")
+      logger.info(f"Cache age: {age}s, TTL: {self.ttl}s, Expired: {age > self.ttl}")
       return age > self.ttl
 
   async def fetch_and_cache_image(self) -> bool:
       """Fetch a random image and cache it locally."""
-      logger.debug("Fetching new image from external source")
-      img_url = "https://picsum.photos/500"
+      logger.info("Fetching new image from external source")
+      img_url = os.getenv("IMG_URL", "https://picsum.photos/500")
+      logger.info(f"cache,py img_url: {img_url}")      
+      #img_url = "https://picsum.photos/500"
       try:
           async with aiohttp.ClientSession() as session:
               async with session.get(img_url) as resp:
@@ -94,7 +101,7 @@ class ImageCache:
                       # Reset grace period flag on new fetch
                       self.grace_period_used = False
                       self._save_metadata()
-                      logger.debug(f"Image fetched and cached successfully at {self.download_timestamp}")
+                      logger.info(f"Image fetched and cached successfully at {self.download_timestamp}")
                       return True
       except Exception as e:
           logger.error(f"Failed to fetch image: {e}")
