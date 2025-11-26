@@ -13,19 +13,24 @@ spec:
       labels:
         app: log-output
     spec:
-      # volumes:
-      #   - name: shared-image
-      #     persistentVolumeClaim:
-      #       claimName: local-pv-claim
       containers:
-        # - name: log-generator
-        #   image: arkb2023/log-generator:1.10.2
-        #   volumeMounts:
-        #   - name: shared-image
-        #     mountPath: /usr/src/app/files
         - name: log-reader
-          image: arkb2023/log-reader:2.2
-          # volumeMounts:
-          # - name: shared-image
-          #   mountPath: /usr/src/app/files
+          image: arkb2023/log-reader:2.5.1
+          env:
+            - name: MESSAGE
+              valueFrom:
+                configMapKeyRef:
+                  name: log-output-config
+                  key: MESSAGE
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/config/
+              readOnly: true
+      volumes:
+        - name: config-volume
+          configMap:
+            name: log-output-config
+            items:
+              - key: information.txt
+                path: information.txt
 

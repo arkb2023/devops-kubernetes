@@ -21,6 +21,11 @@ app = FastAPI(lifespan=lifespan)
 async def root():
     async with httpx.AsyncClient() as client:
         # export PINGPONG_APP_URL=http://ping-pong-svc:3456/pings
+        message = os.getenv("MESSAGE", "default message")
+        logger.debug(f"Root endpoint environment: MESSAGE={message}")
+        with open("/app/config/information.txt", "r") as file:
+            file_content = file.read().strip()
+        logger.debug(f"Root endpoint: MESSAGE={message}, file content={file_content}")
         pingpong_url = os.getenv("PINGPONG_APP_URL", "http://localhost:3000/pings")
         logger.debug(f"Root endpoint: fetching from {pingpong_url}")
         pong_response = await client.get(pingpong_url)
@@ -30,4 +35,10 @@ async def root():
 
     timestamp = datetime.utcnow().isoformat() + "Z"
     unique_id = str(uuid.uuid4())
-    return PlainTextResponse(f"{timestamp}: {unique_id}.\n{pong_text}")
+    #return PlainTextResponse(f"{timestamp}: {unique_id}.\n{pong_text}")
+    return PlainTextResponse(f"""
+        file_content: {file_content}
+        env variable: MESSAGE={message}
+        {timestamp}: {unique_id}.
+        {pong_text}
+        """)

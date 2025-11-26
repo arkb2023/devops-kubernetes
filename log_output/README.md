@@ -1,20 +1,38 @@
-## Exercise 2.1. Connecting pods  
-### Transitions the `Log Output` and `Ping Pong` applications from file-based data sharing via persistent volumes to HTTP-based inter-application communication.
+## Exercise 2.5: Documentation and ConfigMaps
 
-**Volume Resources**  
-The previously shared `persistent volume` and `persistent volume claim` used for data exchange between the two applications have been removed.
+### Objective  
+Create a ConfigMap for the "Log output" application that defines one file `information.txt` and one environment variable `MESSAGE`.
 
-**Application Updates**  
-- `Log Output` Application  
-  - Enhanced to perform an HTTP GET request to the `Ping Pong` application’s `/pings` endpoint via the service URL `http://ping-pong-svc:3456/pings`  
-  - On receiving a `GET /` request, the app fetches the current pong count from the `Ping Pong` app, generates a timestamp and a random UUID string, then combines and returns this information as the HTTP response.  
-- `Ping Pong` Application  
-  - Supports two HTTP GET endpoints:  
-    - `GET /pingpong`: Increments the ping count and responds with `Pong`  
-    - `GET /pings`: Returns the current `ping request count`  
-- Base application versions used:  
-  - [Log output v1.11](https://github.com/arkb2023/devops-kubernetes/tree/1.11/log_output)  
-  - [Ping pong v1.11](https://github.com/arkb2023/devops-kubernetes/tree/1.11/ping-pong)  
+### Resources  
+- [`configmap.yaml`](./manifests/configmap.yaml) defines:  
+  - ConfigMap named `log-output-config`  
+  - Data includes the file `information.txt` and environment variable `MESSAGE` in key-value format with the required contents.
+
+- [`deployment.yaml`](./manifests/deployment.yaml) specifications enhanced to:  
+  - Add volume `config-volume` sourced from ConfigMap `log-output-config`  
+  - Mount `config-volume` into the Pod’s `log-reader` container at path `/app/config`  
+  - Inject `MESSAGE` from the ConfigMap as an environment variable into `log-reader` container  
+  - Map ConfigMap key `information.txt` to the volume mount as a file
+
+### Application Updates  
+- **Log Output Application:**  
+  On receiving a `GET /` request, the app:  
+  - Reads contents from the mounted file `/app/config/information.txt`  
+  - Accesses the environment variable `MESSAGE`  
+  - Fetches the current pong count from the `Ping Pong` app  
+  - Generates a timestamp and random UUID string  
+  - Combines and returns this information in the HTTP response in the following format:
+
+    ```text
+    file content: this text is from file
+    env variable: MESSAGE=hello world
+    2024-03-30T12:15:17.705Z: 8523ecb1-c716-4cb6-a044-b9e83bb98e43.
+    Ping / Pongs: 3
+    ```
+
+### Base Application Versions Used  
+- [Log output v2.1](https://github.com/arkb2023/devops-kubernetes/tree/2.1/log_output)  
+- [Ping pong v2.1](https://github.com/arkb2023/devops-kubernetes/tree/2.1/ping-pong)
 
 ***
 
@@ -23,6 +41,7 @@ The previously shared `persistent volume` and `persistent volume claim` used for
 ├── log_output
 │   ├── README.md
 │   ├── manifests
+│   │   ├── configmap.yaml
 │   │   ├── deployment.yaml
 │   │   ├── ingress.yaml
 │   │   └── service.yaml
@@ -42,166 +61,134 @@ The previously shared `persistent volume` and `persistent volume claim` used for
 ***
 
 
-
-
 ### 2. Prerequisites
-- Docker, k3d, kubectl installed
+
+- Ensure the following tools are installed:
+  - Docker  
+  - k3d (K3s in Docker)  
+  - kubectl (Kubernetes CLI)
+- Create and run a Kubernetes cluster with k3d, using 2 agent nodes and port mapping to expose the ingress load balancer on host port 8081:
+    ```bash
+    k3d cluster create mycluster --agents 2 --port 8081:80@loadbalancer
+    ```
+  - `exercises` namespace created and configured in the cluster
+    ```bash
+    kubectl create namespace exercises
+    ```
+
+***
 
 ### 3. Build and Push the Docker Image to DockerHub
 
 ```bash
-docker build -t arkb2023/log-reader:2.2 ./log_output/reader/
-docker build -t arkb2023/ping-pong:2.1 ./ping-pong/
-
-docker push arkb2023/log-reader:2.2
-docker push arkb2023/ping-pong:2.1
+cd log_output/reader/
+docker build -t arkb2023/log-reader:2.5.1 .
+docker push arkb2023/log-reader:2.5.1
 ```
 > Docker images are published at:  
+https://hub.docker.com/repository/docker/arkb2023/log-reader/tags/2.5.1  
 https://hub.docker.com/repository/docker/arkb2023/ping-pong/tags/2.1  
-https://hub.docker.com/repository/docker/arkb2023/log-reader/tags/2.2  
+
 
 ### 4. **Deploy to Kubernetes**
 
-**Create cluster**
-
-```bash
-k3d cluster create --port 8081:80@loadbalancer --agents 2
-```
-
-**Apply the `Deployment` `Service` and `Ingress` Manifests**  
+**Apply the `log-output` and `ping-pong` application manifests to the `exercises` namespace:**
 
 ```bash
 kubectl apply \
-  -f ./log_output/manifests/deployment.yaml \
-  -f ./log_output/manifests/ingress.yaml \
-  -f ./log_output/manifests/service.yaml \
-  -f ./ping-pong/manifests/deployment.yaml \
-  -f ./ping-pong/manifests/service.yaml \
-  -f ./ping-pong/manifests/ingress.yaml
+  -f log_output/manifests/ \
+  -f ping-pong/manifests/ \
+  -n exercises
 ```
 *Output*
 ```text
-deployment.apps/log-output-dep configured
-ingress.networking.k8s.io/dwk-log-output-ingress unchanged
-service/log-output-svc unchanged
-deployment.apps/ping-pong-dep unchanged
-service/ping-pong-svc unchanged
-ingress.networking.k8s.io/dwk-ping-pong-ingress unchanged
+configmap/log-output-config created
+deployment.apps/log-output-dep created
+ingress.networking.k8s.io/dwk-log-output-ingress created
+service/log-output-svc created
+deployment.apps/ping-pong-dep created
+ingress.networking.k8s.io/dwk-ping-pong-ingress created
+service/ping-pong-svc created
 ```
 
-**Verify Both Pods Are Running**  
+### Verify Both Pods Are Running
+
 ```bash
-kubectl get pods
+kubectl get pods -n exercises
 ```
-*Output*
+
+*Output:*
 ```text
 NAME                             READY   STATUS    RESTARTS   AGE
-log-output-dep-5b745db5b-cnd9c   1/1     Running   0          4m41s
-ping-pong-dep-6fbc7f5c6d-tpp57   1/1     Running   0          4m41s
+log-output-dep-cf8488db5-4967j   1/1     Running   0          69m
+ping-pong-dep-57d7c4b697-s4nv8   1/1     Running   0          66m
 ```
 
-### 5. Validate Inter-App HTTP Request/Response
+### Verify ConfigMap Data is Successfully Mounted
 
-- **GET /pingpong — Ping Pong app increments ping count and replies with "Pong".**
+List files in the mounted ConfigMap volume inside the `log-reader` container:
 
-  - Examining `ping pong` application logs confirms receipt of `GET /pingpong` requests with `200 OK` responses:
+```bash
+kubectl -n exercises exec -it log-output-dep-cf8488db5-4967j -c log-reader -- ls -l /app/config/
+```
 
-    ```bash
-    kubectl logs -f ping-pong-dep-6fbc7f5c6d-tpp57
-    ```
+*Output:*
+```text
+total 0
+lrwxrwxrwx 1 root root 22 Nov 26 07:26 information.txt -> ..data/information.txt
+```
 
-    **Output:**
+Display contents of the `information.txt` file:
 
-    ```text
-    INFO:     10.42.0.4:57812 - "GET /pingpong HTTP/1.1" 200 OK
-    ```
+```bash
+kubectl -n exercises exec -it log-output-dep-cf8488db5-4967j -c log-reader -- cat /app/config/information.txt
+```
 
-  - Browser access to `/pingpong` endpoint displays response indicating the incremented ping count.  
-    ![Ping Pong app increments ping count](./images/01-ping-pong-app-increments-ping-count.png)  
+*Output:*
+```text
+this text is from file
+```
 
-- **GET /pings — Ping Pong app returns the current pong count.**
+Verify the environment variable `MESSAGE` inside the container:
 
-  - `Ping pong` application logs show handling of `GET /pings` requests with successful `200 OK` responses:
+```bash
+kubectl -n exercises exec -it log-output-dep-cf8488db5-4967j -c log-reader -- printenv | grep MESSAGE
+```
 
-    ```bash
-    kubectl logs -f ping-pong-dep-6fbc7f5c6d-tpp57
-    ```
+*Output:*
+```text
+MESSAGE=hello world
+```
 
-    **Output:**
+***
 
-    ```text
-    INFO:     10.42.0.24:43580 - "GET /pings HTTP/1.1" 200 OK
-    ```
+### 5. Validate
 
-  - Browser access to `/pings` endpoint returns the current pong count as expected.  
-    ![Ping Pong app responds to /pings endpoint](./images/02-ping-pong-app-responds-to-pings-endpoint.png)  
-    
+- Access the application via URL: `http://localhost:8081`
 
-- **GET / — Log Output app responds with timestamp, unique ID, and pong count retrieved from Ping Pong app.**
+- The browser displays the application response in the required format:
 
-  - `Log Output` app logs confirm it makes HTTP GET requests to the Ping Pong app service URL `http://ping-pong-svc:3456/pings` and receives `200 OK` responses:
-
-    ```bash
-    kubectl logs -f log-output-dep-5b745db5b-cnd9c
-    ```
-
-    **Output:**
-
-    ```text
-    INFO:httpx:HTTP Request: GET http://ping-pong-svc:3456/pings "HTTP/1.1 200 OK"
-    INFO:     10.42.0.4:57512 - "GET / HTTP/1.1" 200 OK
-    ```
-
-  - Corresponding `Ping Pong` app logs verify these requests from `log-output` pod:
-
-    ```bash
-    kubectl logs -f ping-pong-dep-6fbc7f5c6d-tpp57
-    ```
-
-    **Output:**
-
-    ```text
-    INFO:     10.42.0.24:43580 - "GET /pings HTTP/1.1" 200 OK
-    ```
-
-  - External browser accessing the Log Output app’s `/` endpoint receives a response combining timestamp, unique ID, and the current pong count, verifying inter-app communication works as expected.  
-    ![Log Output app responds to GET /](./images/03-log-output-app-responds-to-get.png)  
-    
+  ![caption](./images/01-log-output-app-responds-with-configmap-info.png)
 
 ### 6. **Cleanup**
 
-**Delete the `Deployment` `Service` and `Ingress` Manifests** 
+**Delete the `log-output` and `ping-pong` application manifests from the `exercises` namespace:**
+
 ```bash
 kubectl delete \
-  -f ./log_output/manifests/deployment.yaml \
-  -f ./log_output/manifests/ingress.yaml \
-  -f ./log_output/manifests/service.yaml \
-  -f ./ping-pong/manifests/deployment.yaml \
-  -f ./ping-pong/manifests/service.yaml \
-  -f ./ping-pong/manifests/ingress.yaml
+  -f ./log_output/manifests/ \
+  -f ./ping-pong/manifests/ \
+  -n exercises
 ```
 *Output*
 ```text
-deployment.apps "log-output-dep" deleted from default namespace
-ingress.networking.k8s.io "dwk-log-output-ingress" deleted from default namespace
-service "log-output-svc" deleted from default namespace
-deployment.apps "ping-pong-dep" deleted from default namespace
-service "ping-pong-svc" deleted from default namespace
-ingress.networking.k8s.io "dwk-ping-pong-ingress" deleted from default namespace
-```
-
-**Stop the k3d Cluster**  
-```bash
-k3d cluster delete k3s-default
-```
-*Output*
-```text
-INFO[0000] Deleting cluster 'k3s-default'
-INFO[0003] Deleting cluster network 'k3d-k3s-default'
-INFO[0003] Deleting 1 attached volumes...
-INFO[0003] Removing cluster details from default kubeconfig...
-INFO[0003] Removing standalone kubeconfig file (if there is one)...
-INFO[0003] Successfully deleted cluster k3s-default!
+configmap "log-output-config" deleted from exercises namespace
+deployment.apps "log-output-dep" deleted from exercises namespace
+ingress.networking.k8s.io "dwk-log-output-ingress" deleted from exercises namespace
+service "log-output-svc" deleted from exercises namespace
+deployment.apps "ping-pong-dep" deleted from exercises namespace
+ingress.networking.k8s.io "dwk-ping-pong-ingress" deleted from exercises namespace
+service "ping-pong-svc" deleted from exercises namespace
 ```
 
 ---

@@ -23,3 +23,4 @@
 - [2.2.](https://github.com/arkb2023/devops-kubernetes/tree/2.2/the_project)  
 - [2.3.](https://github.com/arkb2023/devops-kubernetes/blob/2.3/README.namespace.md)  
 - [2.4.](https://github.com/arkb2023/devops-kubernetes/blob/2.4/the_project)  
+- [2.5.](https://github.com/arkb2023/devops-kubernetes/blob/2.5/log_output)  
