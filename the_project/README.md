@@ -4,7 +4,7 @@ Ensure that your project contains no hardcoded ports, URLs, or other configurati
 
 ### Resource Updates
 
-- [`project-config-env.yaml`](./configmaps/project-config-env.yaml): Defines the `project-config-env` ConfigMap with the following environment variables:  
+- [`project-config.yaml`](./configmaps/project-config.yaml): Defines the `project-config-env` ConfigMap with the following environment variables:  
   - `IMG_URL`: `https://picsum.photos/200`  
   - `CACHE_DIR`: `/usr/src/app/files/cache`  
   - `TODO_BACKEND_URL`: `http://127.0.0.1:8081`
