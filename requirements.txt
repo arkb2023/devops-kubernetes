@@ -4,3 +4,6 @@ aiohttp
 pytest
 pytest-asyncio
 httpx
+sqlalchemy[asyncio]>=2.0
+asyncpg
+pydantic[email]

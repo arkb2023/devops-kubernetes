@@ -1,28 +1,26 @@
-## Exercise 2.6: The Project, Step 10
+## Exercise 2.8. The project, step 11
 
-Ensure that your project contains no hardcoded ports, URLs, or other configuration values in the source code. Pass all configurations to pods as environment variables defined either in ConfigMaps or directly in the deployment manifests.
+Create a database and save the todos there. Again, the database should be defined as a stateful set with one replica. Use Secrets and/or ConfigMaps to have the backend access the database.
 
-### Resource Updates
+**Resource Updates**
 
-- [`project-config.yaml`](./configmaps/project-config.yaml): Defines the `project-config-env` ConfigMap with the following environment variables:  
-  - `IMG_URL`: `https://picsum.photos/200`  
-  - `CACHE_DIR`: `/usr/src/app/files/cache`  
-  - `TODO_BACKEND_URL`: `http://127.0.0.1:8081`
+- [`postgresql-configmap.yaml`](./todo_backend/manifests/postgresql-configmap.yaml): Defines Postgres initialization environment variables and backend application database connection variables.  
+- [`postgresql-service.yaml`](./todo_backend/manifests/postgresql-service.yaml): Headless Service with `clusterIP: None` providing stable DNS discovery at `postgresql-db-svc.project.svc.cluster.local` for the Postgres StatefulSet.  
+- [`postgres-db-secret.yaml`](todo_backend/manifests/postgres-db-secret.yaml): Kubernetes Secret containing sensitive data `POSTGRES_PASSWORD` used by the Postgres StatefulSet and backend.  
+- [`postgresql-statefulset.yaml`](./todo_backend/manifests/postgresql-statefulset.yaml): StatefulSet manifest defining a `single replica` Postgres pod with `persistent volume claims` for durable storage, `envFrom` injecting `ConfigMap` and `Secret` references for configuration and credentials.
 
-- `Todo App` [`deployment.yaml`](./todo_app/manifests/deployment.yaml) enhanced to use `envFrom` referencing the entire `project-config-env` ConfigMap to set environment variables in the `todo_app` container.
+- [`deployment.yaml`](./todo_backend/manifests/deployment.yaml) Updated to reference `ConfigMaps` for database connection details and `Secrets` for database credentials securely through `envFrom` and `secretRef` respectively.
 
-- `Todo Backend` [`deployment.yaml`](./todo_backend/manifests/deployment.yaml) similarly enhanced to use `envFrom` with `project-config-env`, defining environment variables for the `todo_backend` container.
+**Application Updates**
 
-### Application Updates
+- **Refactored `Todo Backend`** app to replace in-memory task storage to persistent PostgreSQL with asyncpg and SQLAlchemy ORM
+- Implemented database schema creation on startup to ensure the todos table is created as needed.
+- `POST /todos` enhanced to add new todo items into the PostgreSQL database.
+- `GET /todos` enhanced to retrieve and serialize todos as JSON using Pydantic models.
+- Enhanced application configuration to use Kubernetes-managed environment variables and secrets for database connection parameters
 
-- The **Todo App** replaces the hardcoded image source URL `https://picsum.photos/200` with the environment variable `IMG_URL`.
-- The **Todo App** replaces the hardcoded backend URL `http://127.0.0.1:8081` with the environment variable `TODO_BACKEND_URL`.
-- Both **Todo Backend** and **Todo App** replace the shared volume path `/usr/src/app/files/cache` with the environment variable `CACHE_DIR`.
-
-### Base Application Versions
-
-- [Todo App v2.4](https://github.com/arkb2023/devops-kubernetes/tree/2.4/the_project/todo_app)  
-- [Todo Backend v2.4](https://github.com/arkb2023/devops-kubernetes/tree/2.4/the_project/todo_backend)
+**Base Application Versions**
+- [Todo Backend v2.6](https://github.com/arkb2023/devops-kubernetes/tree/2.6/the_project/todo_backend)
 
 ***
 
@@ -31,23 +29,6 @@ Ensure that your project contains no hardcoded ports, URLs, or other configurati
 the_project
 ├── configmaps
 │   └── project-config-env.yaml
-├── todo_app
-│   ├── Dockerfile
-│   ├── app
-│   │   ├── __init__.py
-│   │   ├── cache.py
-│   │   ├── main.py
-│   │   ├── routes
-│   │   │   ├── __init__.py
-│   │   │   └── frontend.py
-│   │   ├── static
-│   │   │   └── scripts.js
-│   │   └── templates
-│   │       └── index.html
-│   ├── manifests
-│   │   ├── deployment.yaml
-│   │   ├── ingress.yaml
-│   │   └── service.yaml
 ├── todo_backend
 │   ├── Dockerfile
 │   ├── app
@@ -61,6 +42,10 @@ the_project
 │   ├── manifests
 │   │   ├── deployment.yaml
 │   │   ├── ingress.yaml
+│   │   ├── postgres-db-secret.yaml
+│   │   ├── postgresql-configmap.yaml
+│   │   ├── postgresql-service.yaml
+│   │   ├── postgresql-statefulset.yaml
 │   │   └── service.yaml
 └── volumes
     ├── persistentvolume.yaml
@@ -85,7 +70,18 @@ the_project
 
 ***
 
-### 3. Deploy the project resources into the `project` namespace along with the ConfigMap
+### 3. Build and Push the Docker Image to DockerHub
+
+```bash
+cd todo_backend
+docker build -t arkb2023/todo-backend:2.8.6 .
+docker push arkb2023/todo-backend:2.8.6
+```
+> Docker images are published at:  
+https://hub.docker.com/repository/docker/arkb2023/todo-backend/tags/2.8.6  
+
+
+### 4. Deploy the project resources into the `project` namespace along with the ConfigMap
 
 ```bash
 kubectl apply -n project \
@@ -103,74 +99,72 @@ ingress.networking.k8s.io/todo-app-ingress created
 service/todo-app-svc created
 deployment.apps/todo-backend-dep created
 ingress.networking.k8s.io/todo-backend-ingress created
+configmap/postgres-db-config created
+service/postgresql-db-svc created
+statefulset.apps/postgresql-db created
 service/todo-backend-svc created
 configmap/project-config-env created
 persistentvolume/local-pv created
 persistentvolumeclaim/local-pv-claim created
 ```
 
-
-**Verify ConfigMaps**
-
-Run the following command to describe the `project-config-env` ConfigMap in the `project` namespace:
-
+**Setup Local PersistentVolume**  
+To bind PersistentVolume to a local host path in a containerized node, create the backing storage directory inside the node container.  
 ```bash
-kubectl describe configmap project-config-env -n project
+docker exec k3d-k3s-default-agent-0 mkdir -p /tmp/kube
 ```
 
-*output:*
+### 5. Validate Configuration Settings
 
+**Verify pod status:**  
+```bash
+kubectl get pod -n project
+```
+*Output:*  
 ```text
-Name:         project-config-env
+NAME                                READY   STATUS    RESTARTS   AGE
+postgresql-db-0                     1/1     Running   0          62m
+todo-app-dep-6f5bd4998f-k46n6      1/1     Running   0          152m
+todo-backend-dep-5b6bddd695-bs67j  1/1     Running   0          7m3s
+```
+
+
+**Verify ConfigMaps for environment settings:**  
+```bash
+kubectl describe configmap postgres-db-config -n project
+```
+*Output:*  
+```text
+Name:         postgres-db-config
 Namespace:    project
-Labels:       <none>
+Labels:       app=postgresql-db
 Annotations:  <none>
 
 Data
 ====
-CACHE_DIR:
+DB_HOST:
 ----
-/usr/src/app/files/cache
+postgresql-db-svc.project.svc.cluster.local
 
-IMG_URL:
+DB_PORT:
 ----
-https://picsum.photos/200
-
-LOG_FORMAT:
-----
-ENV: %(asctime)s - %(name)s - %(levelname)s - %(message)s
+5432
 
 LOG_LEVEL:
 ----
-INFO
+DEBUG
 
-THE_PROJECT_ROOT:
+PGDATA:
 ----
-/app
+/data/pgdata
 
-TODO_APP_HOST:
+POSTGRES_DB:
 ----
-127.0.0.1
+testdb
 
-TODO_APP_PORT:
+POSTGRES_USER:
 ----
-3000
-
-TODO_APP_URL:
-----
-http://127.0.0.1:8080
-
-TODO_BACKEND_HOST:
-----
-127.0.0.1
-
-TODO_BACKEND_PORT:
-----
-3000
-
-TODO_BACKEND_URL:
-----
-http://127.0.0.1:8081
+testdbuser
 
 BinaryData
 ====
@@ -178,71 +172,114 @@ BinaryData
 Events:  <none>
 ```
 
-**Verify environment variables in `todo-backend` and `todo-app` pod containers**
 
-Check the environment variables inside the `todo-backend` container:
-
+**Verify StatefulSet:**  
 ```bash
-kubectl -n project exec -it todo-backend-dep-69b78f8c84-bpldj -c todo-backend-container -- printenv
+kubectl describe statefulset -n project
 ```
+In the output, look for references to `postgres-db-secret` and `postgres-db-config` to confirm that ConfigMaps and Secrets are successfully loaded.
 
-*output:*
-
+*Sample Output:*  
 ```text
-PORT=3000
-CACHE_DIR=/usr/src/app/files/cache
-TODO_BACKEND_URL=http://127.0.0.1:8081
-TODO_BACKEND_PORT=3000
-TODO_APP_HOST=127.0.0.1
-TODO_APP_PORT=3000
-THE_PROJECT_ROOT=/app
-TODO_APP_URL=http://127.0.0.1:8080
-TODO_BACKEND_HOST=127.0.0.1
-IMG_URL=https://picsum.photos/200
-LOG_FORMAT=ENV: %(asctime)s - %(name)s - %(levelname)s - %(message)s
-LOG_LEVEL=INFO
+Name:               postgresql-db
+Namespace:          project
+CreationTimestamp:  Thu, 27 Nov 2025 20:56:55 +0530
+Selector:           app=postgresql-db
+Replicas:           1 desired | 1 total
+Update Strategy:    RollingUpdate
+Pods Status:        1 Running / 0 Waiting / 0 Succeeded / 0 Failed
+Pod Template:
+  Labels:  app=postgresql-db
+  Containers:
+   postgresql-db:
+    Image:      postgres:latest
+    Environment Variables from:
+      postgres-db-config  ConfigMap  Optional: false
+    Environment:
+      POSTGRES_PASSWORD:  <set to the key 'POSTGRES_PASSWORD' in secret 'postgres-db-secret'>  Optional: false
+    Mounts:
+      /data from postgresql-db-disk (rw)
+Volume Claims:
+  Name:           postgresql-db-disk
+  StorageClass:   local-path
+  Capacity:       100Mi
+  Access Modes:   [ReadWriteOnce]
+Events:  <none>
 ```
 
-Check the environment variables inside the `todo-app` container:
 
+**Verify PVC status:**  
 ```bash
-kubectl -n project exec -it todo-app-dep-64cc79cbf7-q6vp5 -c todo-app-container -- printenv
+kubectl -n project get pvc
 ```
-
-*output:*
-
+*Output:*  
 ```text
-PORT=3000
-CACHE_DIR=/usr/src/app/files/cache
-TODO_BACKEND_URL=http://127.0.0.1:8081
-TODO_APP_URL=http://127.0.0.1:8080
-IMG_URL=https://picsum.photos/200
-LOG_FORMAT=ENV: %(asctime)s - %(name)s - %(levelname)s - %(message)s
-TODO_APP_HOST=127.0.0.1
-THE_PROJECT_ROOT=/app
-TODO_BACKEND_HOST=127.0.0.1
-TODO_BACKEND_PORT=3000
-LOG_LEVEL=INFO
-TODO_APP_PORT=3000
+NAME                                 STATUS   VOLUME                                  CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+local-pv-claim                      Bound    local-pv                                1Gi        RWO           manual         156m
+postgresql-db-disk-postgresql-db-0 Bound    pvc-e2b8a0ba-59ba-4477-8e39-4819d932ba56  100Mi    RWO           local-path     164m
 ```
 
----
+**Verify environment variables in `todo-backend` pod container:**  
 
-### 4. Validate
+Check environment variables inside the `todo-backend` container:  
+```bash
+kubectl -n project exec -it todo-backend-dep-5b6bddd695-bs67j -c todo-backend-container -- printenv | egrep -e "DB|POST"
+```
+*Output:*  
+```text
+POSTGRES_USER=testdbuser
+DB_PORT=5432
+POSTGRES_DB=testdb
+DB_HOST=postgresql-db-svc.project.svc.cluster.local
+POSTGRES_PASSWORD=testdbuserpassword
+```
 
-- **Initial page access:**  
-  The image renders correctly alongside an empty todo list.  
-  ![caption](./images/01-initial-page.png)
+### 7. Validate functionality
 
-- **Todo addition functionality:**  
-  Adding a todo item works as expected and is reflected in subsequent GET requests.  
-  ![caption](./images/02-todo-post-get-working.png)  
+- **Image loads and Todo addition functionality - confirms `POST /todos` handling:**  
+  ![caption](./images/01-todo-post-get-working.png)
 
----
+- **`JSON` formatted todo list returned - confirms `GET /todos` handling:**  
+  ![caption](./images/02-todo-get-working.png)  
 
-### Cleanup
+- **[DB persistence] Restart `todo_backend` and verify same Image and Todo list:**  
 
-Run the following command to delete all project-related resources from the `project` namespace:
+  - Restart `Todo backend` deployment:  
+    ```bash
+    kubectl -n project rollout restart deployment todo-backend-dep
+    ```
+    *Output*
+    ```text
+    deployment.apps/todo-backend-dep restarted
+    ```
+  - Verify pod restart status: 
+    ```bash
+    kubectl -n project get pods
+    ```
+    ```text
+    NAME                                READY   STATUS        RESTARTS   AGE
+    postgresql-db-0                     1/1     Running       0          90m
+    todo-app-dep-6f5bd4998f-k46n6       1/1     Running       0          3h
+    todo-backend-dep-84f5655695-5sfdz   1/1     Running       0          2s
+    todo-backend-dep-c5495555-f4qnp     1/1     Terminating   0          4m20s
+    ```
+    ```bash
+    kubectl -n project get pods
+    ```
+    ```text
+    NAME                                READY   STATUS    RESTARTS   AGE
+    postgresql-db-0                     1/1     Running   0          91m
+    todo-app-dep-6f5bd4998f-k46n6       1/1     Running   0          3h1m
+    todo-backend-dep-84f5655695-5sfdz   1/1     Running   0          44s
+    ```
+  - Post restart: Same Image and Todo list returned  
+    ![caption](./images/03-todo-post-get-working-post-restart.png)  
+
+***
+
+### 8. Cleanup
+
+**Delete Manifests** 
 
 ```bash
 kubectl delete -n project \

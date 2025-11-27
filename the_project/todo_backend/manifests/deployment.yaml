@@ -19,10 +19,14 @@ spec:
             claimName: local-pv-claim
       containers:
         - name: todo-backend-container
-          image: arkb2023/todo-backend:2.6.1  # image name/tag
+          image: arkb2023/todo-backend:2.8.6  # image name/tag
           volumeMounts:
           - name: shared-image
             mountPath: /usr/src/app/files
           envFrom:
           - configMapRef:
-              name: project-config-env
+              name: project-config-env # Injects all vars from this ConfigMap
+          - configMapRef:
+              name: postgres-db-config
+          - secretRef:
+              name: postgres-db-secret

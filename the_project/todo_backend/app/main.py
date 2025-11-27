@@ -1,21 +1,34 @@
-# FastAPI app initialization and router inclusion, configures middleware (e.g., CORS).
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from .storage import init_db, engine
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import todos
+from .routes import todos
 
-app = FastAPI(title="Todo Backend")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    await init_db()
+    yield
+    # Shutdown
+    await engine.dispose()
 
-# Allow CORS so frontend Todo app can call backend APIs
+app = FastAPI(title="Todo API", lifespan=lifespan)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust or restrict origins accordingly
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.include_router(todos.router)
-
+@app.get("/test")
+async def test():
+    return {"status": "ok"}
+@app.get("/")
+async def root():
+    return {"message": "Todo API is running"}
 
 # Run with: uvicorn app.main:app --reload
 

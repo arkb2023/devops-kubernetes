@@ -1,39 +1,52 @@
-# Implements API endpoints:
-# GET /todos returns current todo list.
-# POST /todos accepts new todo, validates input, adds to storage.
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from typing import List
-from app.models import Todo
-from app.storage import todo_list, add_todo
+from sqlalchemy.ext.asyncio import AsyncSession
+from ..models import TodoCreate, TodoResponse, TodoUpdate, MessageResponse
+from ..storage import (
+    get_todos, create_todo, get_todo, update_todo, delete_todo, get_db_session
+)
 import logging
 import os
+
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FORMAT = os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 logging.basicConfig(level=LOG_LEVEL, format=LOG_FORMAT)
 logger = logging.getLogger(__name__)
-logger.info(f"todos.py module loaded: LOG_LEVEL={LOG_LEVEL}, LOG_FORMAT={LOG_FORMAT}")
+logger.info(f"todos.py module loaded: LOG_LEVEL={LOG_LEVEL}")
 
-router = APIRouter()
+router = APIRouter(prefix="/todos", tags=["todos"])
 
-@router.get("/todos", response_model=List[Todo])
-async def get_todos():
-    # Return the current list of todos
-    # app/storage.py:todo_list
-    # holds the current in-memory list of todos.
-    # Returns the JSON serialized list of todos as response payload.
-    logger.info("get_todos endpoint: Returning current todo list")
-    return todo_list
+@router.get("/", response_model=List[TodoResponse])
+async def get_todos_route(db: AsyncSession = Depends(get_db_session)):
+    """Get all todos."""
+    return await get_todos(db)
 
-@router.post("/todos", status_code=201)
-async def create_todo(todo: Todo):
-    # 1. FastAPI automatically parses and validates the incoming JSON body payload against 
-    #    the Todo Pydantic model (app/models.py).
-    # 2. If validation passes (todo text length between 1-140 chars), 
-    #    this validated todo object is passed to the create_todo handler.
-    # 3. Calls add_todo(todo) method in app/storage.py, 
-    #    which appends the new todo item into the todo_list in-memory list.
-    logger.info(f"create_todo endpoint: Adding new todo: {todo}")
-    add_todo(todo)
-    # Returns an HTTP 201 Created response with a success message.
-    return {"message": "Todo added successfully"}
+@router.post("/", response_model=TodoResponse, status_code=201)
+async def create_todo_route(todo: TodoCreate, db: AsyncSession = Depends(get_db_session)):
+    """Create new todo."""
+    return await create_todo(db, todo)
+
+@router.get("/{todo_id}", response_model=TodoResponse)
+async def get_todo_route(todo_id: int, db: AsyncSession = Depends(get_db_session)):
+    """Get single todo."""
+    try:
+        return await get_todo(db, todo_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.put("/{todo_id}", response_model=TodoResponse)
+async def update_todo_route(todo_id: int, update_data: TodoUpdate, db: AsyncSession = Depends(get_db_session)):
+    """Update todo."""
+    try:
+        return await update_todo(db, todo_id, update_data)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.delete("/{todo_id}", response_model=MessageResponse)
+async def delete_todo_route(todo_id: int, db: AsyncSession = Depends(get_db_session)):
+    """Delete todo."""
+    if await delete_todo(db, todo_id):
+        return {"message": f"Todo {todo_id} deleted successfully"}
+    raise HTTPException(status_code=404, detail=f"Todo {todo_id} not found")
+    

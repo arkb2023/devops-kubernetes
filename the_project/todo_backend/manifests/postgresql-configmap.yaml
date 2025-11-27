@@ -1,0 +1,17 @@
+# PostgreSQL StatefulSet ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: project
+  name: postgres-db-config
+  labels:
+    app: postgresql-db
+data:
+  POSTGRES_USER: testdbuser
+  POSTGRES_DB: testdb
+  #POSTGRES_PASSWORD: testdbuserpassword
+  DB_HOST: postgresql-db-svc.project.svc.cluster.local
+  DB_PORT: "5432"
+  PGDATA: /data/pgdata
+  LOG_LEVEL: DEBUG
+

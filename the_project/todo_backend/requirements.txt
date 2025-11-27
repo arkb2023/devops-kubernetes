@@ -1,1 +1,9 @@
 # Lists dependencies like fastapi, uvicorn, and optionally pydantic.
+fastapi
+uvicorn[standard]
+pytest
+pytest-asyncio
+httpx
+sqlalchemy[asyncio]>=2.0
+asyncpg
+pydantic[email]
