@@ -1,0 +1,41 @@
+# PostgreSQL StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  namespace: exercises
+  name: postgresql-db
+spec:
+  serviceName: postgresql-db-svc
+  replicas: 2
+  selector:
+    matchLabels:
+      app: postgresql-db
+  template:
+    metadata:
+      labels:
+        app: postgresql-db
+    spec:
+      containers:
+        - name: postgresql-db
+          image: postgres:latest
+          volumeMounts:
+            - name: postgresql-db-disk
+              mountPath: /data
+          envFrom:
+          - configMapRef:
+              name: postgres-db-config
+          # env:
+          #   - name: POSTGRES_PASSWORD
+          #     value: testpassword
+          #   - name: PGDATA
+          #     value: /data/pgdata
+  # Volume Claim
+  volumeClaimTemplates:
+    - metadata:
+        name: postgresql-db-disk
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 100Mi

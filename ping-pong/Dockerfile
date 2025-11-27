@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY pingpong.py .
 
-RUN pip install fastapi uvicorn
+RUN pip install fastapi uvicorn sqlalchemy asyncpg
 
 ENV PORT=3000
 
