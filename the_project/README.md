@@ -1,55 +1,70 @@
-## Exercise 2.8. The project, step 11
+## Exercise 2.9 The project, step 12
 
-Create a database and save the todos there. Again, the database should be defined as a stateful set with one replica. Use Secrets and/or ConfigMaps to have the backend access the database.
+Create a CronJob that generates a new todo every hour to remind you to do 'Read <URL>', here <URL> is a Wikipedia article that was decided by the job randomly. It does not have to be a hyperlink, the user can copy-paste the URL from the todo. https://en.wikipedia.org/wiki/Special:Random responds with a redirect to a random Wikipedia page so you can ask it to provide a random article for you to read. TIP: Check location header
 
-**Resource Updates**
+**Resource and Applicaiton Enhancements**
+- [`cron_wiki_todo.yaml`](./cronjob/cron_wiki_todo.yaml): `CronJob` resource with hourly schedule, references custom container image and points to `todo_backend` service endpoint for rechability to add `todos`.
+- [`cron_wiki_todo.py`](./cronjob/cron_wiki_todo.py): Application to fetch random Wikipedia article via `https://en.wikipedia.org/wiki/Special:Random` (302 redirect Location header), formats todo text as `"Read <wikipedia-url>"`, POSTs to existing todo-backend API endpoint.
+- [`Dockerfile`](./cronjob/Dockerfile): Custom container image with packaged application
 
-- [`postgresql-configmap.yaml`](./todo_backend/manifests/postgresql-configmap.yaml): Defines Postgres initialization environment variables and backend application database connection variables.  
-- [`postgresql-service.yaml`](./todo_backend/manifests/postgresql-service.yaml): Headless Service with `clusterIP: None` providing stable DNS discovery at `postgresql-db-svc.project.svc.cluster.local` for the Postgres StatefulSet.  
-- [`postgres-db-secret.yaml`](todo_backend/manifests/postgres-db-secret.yaml): Kubernetes Secret containing sensitive data `POSTGRES_PASSWORD` used by the Postgres StatefulSet and backend.  
-- [`postgresql-statefulset.yaml`](./todo_backend/manifests/postgresql-statefulset.yaml): StatefulSet manifest defining a `single replica` Postgres pod with `persistent volume claims` for durable storage, `envFrom` injecting `ConfigMap` and `Secret` references for configuration and credentials.
-
-- [`deployment.yaml`](./todo_backend/manifests/deployment.yaml) Updated to reference `ConfigMaps` for database connection details and `Secrets` for database credentials securely through `envFrom` and `secretRef` respectively.
-
-**Application Updates**
-
-- **Refactored `Todo Backend`** app to replace in-memory task storage to persistent PostgreSQL with asyncpg and SQLAlchemy ORM
-- Implemented database schema creation on startup to ensure the todos table is created as needed.
-- `POST /todos` enhanced to add new todo items into the PostgreSQL database.
-- `GET /todos` enhanced to retrieve and serialize todos as JSON using Pydantic models.
-- Enhanced application configuration to use Kubernetes-managed environment variables and secrets for database connection parameters
 
 **Base Application Versions**
-- [Todo Backend v2.6](https://github.com/arkb2023/devops-kubernetes/tree/2.6/the_project/todo_backend)
+- [Todo Backend v2.8](https://github.com/arkb2023/devops-kubernetes/tree/2.8/the_project/todo_backend)
+- [Todo App v2.8](https://github.com/arkb2023/devops-kubernetes/tree/2.8/the_project/todo_app)
 
-***
+
+**Architecture**
+
+![caption](images/2.9-lab.drawio.png)
+
 
 ### 1. **Directory and File Structure**
 <pre>
 the_project
+├── README.md
 ├── configmaps
-│   └── project-config-env.yaml
-├── todo_backend
-│   ├── Dockerfile
-│   ├── app
-│   │   ├── __init__.py
-│   │   ├── main.py
-│   │   ├── models.py
-│   │   ├── routes
-│   │   │   ├── __init__.py
-│   │   │   └── todos.py
-│   │   └── storage.py
-│   ├── manifests
-│   │   ├── deployment.yaml
-│   │   ├── ingress.yaml
-│   │   ├── postgres-db-secret.yaml
-│   │   ├── postgresql-configmap.yaml
-│   │   ├── postgresql-service.yaml
-│   │   ├── postgresql-statefulset.yaml
-│   │   └── service.yaml
-└── volumes
-    ├── persistentvolume.yaml
-    └── persistentvolumeclaim.yaml
+│   └── project-config.yaml
+├── cronjob
+│   ├── Dockerfile
+│   ├── cron_wiki_todo.py
+│   ├── cron_wiki_todo.yaml
+├── todo_app
+│   ├── Dockerfile
+│   ├── app
+│   │   ├── __init__.py
+│   │   ├── cache.py
+│   │   ├── main.py
+│   │   ├── routes
+│   │   │   ├── __init__.py
+│   │   │   └── frontend.py
+│   │   ├── static
+│   │   │   └── scripts.js
+│   │   └── templates
+│   │       └── index.html
+│   ├── manifests
+│   │   ├── deployment.yaml
+│   │   ├── ingress.yaml
+│   │   └── service.yaml
+└── todo_backend
+    ├── Dockerfile
+    ├── app
+    │   ├── __init__.py
+    │   ├── main.py
+    │   ├── models.py
+    │   ├── routes
+    │   │   ├── __init__.py
+    │   │   └── todos.py
+    │   └── storage.py
+    ├── manifests
+    │   ├── deployment.yaml
+    │   ├── ingress.yaml
+    │   ├── postgres-db-secret.yaml
+    │   ├── postgresql-configmap.yaml
+    │   ├── postgresql-service.yaml
+    │   ├── postgresql-statefulset.yaml
+    │   └── service.yaml
+    ├── requirements.txt
+    └── wait-for-it.sh
 </pre>
 
 
@@ -73,22 +88,23 @@ the_project
 ### 3. Build and Push the Docker Image to DockerHub
 
 ```bash
-cd todo_backend
-docker build -t arkb2023/todo-backend:2.8.6 .
-docker push arkb2023/todo-backend:2.8.6
+cd cronjob
+docker build -t arkb2023/wiki-todo-cron:2.9.3 .
+docker push arkb2023/wiki-todo-cron:2.9.3
 ```
 > Docker images are published at:  
-https://hub.docker.com/repository/docker/arkb2023/todo-backend/tags/2.8.6  
+https://hub.docker.com/repository/docker/arkb2023/wiki-todo-cron/tags/2.9.3  
 
 
-### 4. Deploy the project resources into the `project` namespace along with the ConfigMap
+### 4. Deploy the project resources into the `project` namespace along with the `CronJob` manifest
 
 ```bash
 kubectl apply -n project \
   -f the_project/todo_app/manifests/ \
   -f the_project/todo_backend/manifests/ \
   -f the_project/configmaps/ \
-  -f volumes/
+  -f volumes/ \
+  -f the_project/cronjob/cron_wiki_todo.yaml
 ```
 
 *output:*
@@ -99,6 +115,7 @@ ingress.networking.k8s.io/todo-app-ingress created
 service/todo-app-svc created
 deployment.apps/todo-backend-dep created
 ingress.networking.k8s.io/todo-backend-ingress created
+secret/postgres-db-secret created
 configmap/postgres-db-config created
 service/postgresql-db-svc created
 statefulset.apps/postgresql-db created
@@ -106,6 +123,7 @@ service/todo-backend-svc created
 configmap/project-config-env created
 persistentvolume/local-pv created
 persistentvolumeclaim/local-pv-claim created
+cronjob.batch/wiki-todo-generator created
 ```
 
 **Setup Local PersistentVolume**  
@@ -114,170 +132,43 @@ To bind PersistentVolume to a local host path in a containerized node, create th
 docker exec k3d-k3s-default-agent-0 mkdir -p /tmp/kube
 ```
 
-### 5. Validate Configuration Settings
+### 5. Validate functionality
 
-**Verify pod status:**  
+**Test CronJob manually (force immediate execution):**
+
 ```bash
-kubectl get pod -n project
+kubectl create job --from=cronjob/wiki-todo-generator test-hourly-001 -n project
 ```
-*Output:*  
-```text
-NAME                                READY   STATUS    RESTARTS   AGE
-postgresql-db-0                     1/1     Running   0          62m
-todo-app-dep-6f5bd4998f-k46n6      1/1     Running   0          152m
-todo-backend-dep-5b6bddd695-bs67j  1/1     Running   0          7m3s
+*Output:*
+```
+job.batch/test-hourly-001 created
 ```
 
-
-**Verify ConfigMaps for environment settings:**  
+**Check the job Status**
 ```bash
-kubectl describe configmap postgres-db-config -n project
+kubectl get pods -n project | grep test-hourly-001
 ```
-*Output:*  
+*Output:*
 ```text
-Name:         postgres-db-config
-Namespace:    project
-Labels:       app=postgresql-db
-Annotations:  <none>
-
-Data
-====
-DB_HOST:
-----
-postgresql-db-svc.project.svc.cluster.local
-
-DB_PORT:
-----
-5432
-
-LOG_LEVEL:
-----
-DEBUG
-
-PGDATA:
-----
-/data/pgdata
-
-POSTGRES_DB:
-----
-testdb
-
-POSTGRES_USER:
-----
-testdbuser
-
-BinaryData
-====
-
-Events:  <none>
+test-hourly-001-jk244   0/1     Completed   0          38s
 ```
 
-
-**Verify StatefulSet:**  
+**Check the job logs**
 ```bash
-kubectl describe statefulset -n project
+kubectl logs -n project job/test-hourly-001
 ```
-In the output, look for references to `postgres-db-secret` and `postgres-db-config` to confirm that ConfigMaps and Secrets are successfully loaded.
-
-*Sample Output:*  
+*Output:*
 ```text
-Name:               postgresql-db
-Namespace:          project
-CreationTimestamp:  Thu, 27 Nov 2025 20:56:55 +0530
-Selector:           app=postgresql-db
-Replicas:           1 desired | 1 total
-Update Strategy:    RollingUpdate
-Pods Status:        1 Running / 0 Waiting / 0 Succeeded / 0 Failed
-Pod Template:
-  Labels:  app=postgresql-db
-  Containers:
-   postgresql-db:
-    Image:      postgres:latest
-    Environment Variables from:
-      postgres-db-config  ConfigMap  Optional: false
-    Environment:
-      POSTGRES_PASSWORD:  <set to the key 'POSTGRES_PASSWORD' in secret 'postgres-db-secret'>  Optional: false
-    Mounts:
-      /data from postgresql-db-disk (rw)
-Volume Claims:
-  Name:           postgresql-db-disk
-  StorageClass:   local-path
-  Capacity:       100Mi
-  Access Modes:   [ReadWriteOnce]
-Events:  <none>
+todo text: Read https://en.wikipedia.org/wiki/Henry_Souther
+Created todo: Read https://en.wikipedia.org/wiki/Henry_Souther, Response status: 201
 ```
 
-
-**Verify PVC status:**  
-```bash
-kubectl -n project get pvc
-```
-*Output:*  
-```text
-NAME                                 STATUS   VOLUME                                  CAPACITY   ACCESS MODES   STORAGECLASS   AGE
-local-pv-claim                      Bound    local-pv                                1Gi        RWO           manual         156m
-postgresql-db-disk-postgresql-db-0 Bound    pvc-e2b8a0ba-59ba-4477-8e39-4819d932ba56  100Mi    RWO           local-path     164m
-```
-
-**Verify environment variables in `todo-backend` pod container:**  
-
-Check environment variables inside the `todo-backend` container:  
-```bash
-kubectl -n project exec -it todo-backend-dep-5b6bddd695-bs67j -c todo-backend-container -- printenv | egrep -e "DB|POST"
-```
-*Output:*  
-```text
-POSTGRES_USER=testdbuser
-DB_PORT=5432
-POSTGRES_DB=testdb
-DB_HOST=postgresql-db-svc.project.svc.cluster.local
-POSTGRES_PASSWORD=testdbuserpassword
-```
-
-### 7. Validate functionality
-
-- **Image loads and Todo addition functionality - confirms `POST /todos` handling:**  
-  ![caption](./images/01-todo-post-get-working.png)
-
-- **`JSON` formatted todo list returned - confirms `GET /todos` handling:**  
-  ![caption](./images/02-todo-get-working.png)  
-
-- **[DB persistence] Restart `todo_backend` and verify same Image and Todo list:**  
-
-  - Restart `Todo backend` deployment:  
-    ```bash
-    kubectl -n project rollout restart deployment todo-backend-dep
-    ```
-    *Output*
-    ```text
-    deployment.apps/todo-backend-dep restarted
-    ```
-  - Verify pod restart status: 
-    ```bash
-    kubectl -n project get pods
-    ```
-    ```text
-    NAME                                READY   STATUS        RESTARTS   AGE
-    postgresql-db-0                     1/1     Running       0          90m
-    todo-app-dep-6f5bd4998f-k46n6       1/1     Running       0          3h
-    todo-backend-dep-84f5655695-5sfdz   1/1     Running       0          2s
-    todo-backend-dep-c5495555-f4qnp     1/1     Terminating   0          4m20s
-    ```
-    ```bash
-    kubectl -n project get pods
-    ```
-    ```text
-    NAME                                READY   STATUS    RESTARTS   AGE
-    postgresql-db-0                     1/1     Running   0          91m
-    todo-app-dep-6f5bd4998f-k46n6       1/1     Running   0          3h1m
-    todo-backend-dep-84f5655695-5sfdz   1/1     Running   0          44s
-    ```
-  - Post restart: Same Image and Todo list returned  
-    ![caption](./images/03-todo-post-get-working-post-restart.png)  
+**Verify Wikipedia todo appears in UI:**
+![caption](./cronjob/images/03-wiki-todo-03-added-by-cronjobs.png)
 
 ***
 
-### 8. Cleanup
+### 6. Cleanup
 
 **Delete Manifests** 
 
@@ -286,7 +177,8 @@ kubectl delete -n project \
   -f the_project/todo_app/manifests/ \
   -f the_project/todo_backend/manifests/ \
   -f the_project/configmaps/ \
-  -f volumes/
+  -f volumes/ \
+  -f cronjob/cron_wiki_todo.yaml
 ```
 
-```
+---
