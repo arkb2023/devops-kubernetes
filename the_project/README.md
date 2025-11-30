@@ -1,50 +1,31 @@
-## Exercise 2.9 The project, step 12
+# Exercise 2.10: The project, step 13
+Todo Backend Request Logging & Validation (140 char limit) and monitoring through Graphana
 
-Create a CronJob that generates a new todo every hour to remind you to do 'Read <URL>', here <URL> is a Wikipedia article that was decided by the job randomly. It does not have to be a hyperlink, the user can copy-paste the URL from the todo. https://en.wikipedia.org/wiki/Special:Random responds with a redirect to a random Wikipedia page so you can ask it to provide a random article for you to read. TIP: Check location header
+**Todo Backend Application Enhancements (v2.10.1):**
+- `POST /todos`: Validates `text` length ≤140 chars, returns **HTTP 422 Unprocessable Entity** for violations
+- Added **structured logging** for all endpoints
+**Monitoring Stack Setup:**
+- **Helm v3.19.2** installed and verified
+- **kube-prometheus-stack** (Prometheus + Grafana):
 
-**Resource and Applicaiton Enhancements**
-- [`cron_wiki_todo.yaml`](./cronjob/cron_wiki_todo.yaml): `CronJob` resource with hourly schedule, references custom container image and points to `todo_backend` service endpoint for rechability to add `todos`.
-- [`cron_wiki_todo.py`](./cronjob/cron_wiki_todo.py): Application to fetch random Wikipedia article via `https://en.wikipedia.org/wiki/Special:Random` (302 redirect Location header), formats todo text as `"Read <wikipedia-url>"`, POSTs to existing todo-backend API endpoint.
-- [`Dockerfile`](./cronjob/Dockerfile): Custom container image with packaged application
+**Grafana Loki Verification (Data Source: Loki)**
+- Query for all custom app logs:  
+  *{app="todo-backend"} |= `[todo_backend]`*
+- Query for Successfull todo requests  
+  *{app="todo-backend"} |= `todo_created_success`*
+- Rejected todos (>140 chars)
+  *{app="todo-backend"} |= `todo_validation_failed`*
+- Query to filter all `/todos/` endpoint requests   
+  *{app="todo-backend"} |= `/todos/`*
 
 
 **Base Application Versions**
-- [Todo Backend v2.8](https://github.com/arkb2023/devops-kubernetes/tree/2.8/the_project/todo_backend)
-- [Todo App v2.8](https://github.com/arkb2023/devops-kubernetes/tree/2.8/the_project/todo_app)
-
-
-**Architecture**
-
-![caption](images/2.9-lab.drawio.png)
-
+- [Todo Backend v2.9](https://github.com/arkb2023/devops-kubernetes/tree/2.9/the_project/todo_backend)
 
 ### 1. **Directory and File Structure**
 <pre>
 the_project
 ├── README.md
-├── configmaps
-│   └── project-config.yaml
-├── cronjob
-│   ├── Dockerfile
-│   ├── cron_wiki_todo.py
-│   ├── cron_wiki_todo.yaml
-├── todo_app
-│   ├── Dockerfile
-│   ├── app
-│   │   ├── __init__.py
-│   │   ├── cache.py
-│   │   ├── main.py
-│   │   ├── routes
-│   │   │   ├── __init__.py
-│   │   │   └── frontend.py
-│   │   ├── static
-│   │   │   └── scripts.js
-│   │   └── templates
-│   │       └── index.html
-│   ├── manifests
-│   │   ├── deployment.yaml
-│   │   ├── ingress.yaml
-│   │   └── service.yaml
 └── todo_backend
     ├── Dockerfile
     ├── app
@@ -85,100 +66,205 @@ the_project
 
 ***
 
-### 3. Build and Push the Docker Image to DockerHub
+### 3. Monitoring Stack Installation (Prometheus + Grafana + Loki)
 
+**3.1 Install Helm v3.19.2**
+```
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4
+chmod 700 get_helm.sh
+./get_helm.sh
+helm version  # Verify v3.19.2
+```
+
+**3.2 Add Helm Repositories**
+```
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+```
+
+**3.3 Install kube-prometheus-stack**
+```
+kubectl create namespace prometheus
+helm install prometheus-community/kube-prometheus-stack --generate-name --namespace prometheus
+```
+**Grafana Access:**
+```
+# Get admin password
+kubectl --namespace prometheus get secrets kube-prometheus-stack-1764485418-grafana -o jsonpath="{.data.admin-password}" | base64 -d ; echo
+# Port-forward
+kubectl -n prometheus port-forward kube-prometheus-stack-1764485418-grafana-6d959467cb-mrjn7 3000
+```
+Grafana: `http://localhost:3000` (admin/password)
+
+**3.4 Install Loki Stack (Log Aggregation)**
+```
+kubectl create namespace loki-stack
+helm upgrade --install loki --namespace=loki-stack grafana/loki-stack --set loki.image.tag=2.9.3
+```
+**Verify pods running:**
+```
+kubectl get pods -n loki-stack  # loki-0, loki-promtail-* READY
+kubectl get pods -n prometheus  # grafana, prometheus READY
+```
+
+**3.5 Verify Monitoring Stack (All Pods Running )**  
+
+**Helm**
 ```bash
-cd cronjob
-docker build -t arkb2023/wiki-todo-cron:2.9.3 .
-docker push arkb2023/wiki-todo-cron:2.9.3
+helm version
+```
+```text
+version.BuildInfo{Version:"v3.19.2", GitCommit:"8766e718a0119851f10ddbe4577593a45fadf544", GitTreeState:"clean", GoVersion:"go1.24.9"}
+```
+
+**Prometheus Namespace:**
+```bash
+kubectl get pods -n prometheus
+```
+```test
+NAME                                                              READY   STATUS    RESTARTS        AGE
+alertmanager-kube-prometheus-stack-1764-alertmanager-0            2/2     Running   2 (3h24m ago)   12h
+kube-prometheus-stack-1764-operator-679b4d44b8-lkdwh              1/1     Running   2 (3h24m ago)   12h
+kube-prometheus-stack-1764485418-grafana-6d959467cb-mrjn7         3/3     Running   3 (3h24m ago)   12h
+kube-prometheus-stack-1764485418-kube-state-metrics-65847bl4vjv   1/1     Running   1 (3h24m ago)   12h
+kube-prometheus-stack-1764485418-prometheus-node-exporter-cmm6s   1/1     Running   1 (3h24m ago)   12h
+kube-prometheus-stack-1764485418-prometheus-node-exporter-kzgt4   1/1     Running   1 (3h24m ago)   12h
+kube-prometheus-stack-1764485418-prometheus-node-exporter-sj56r   1/1     Running   3 (3h23m ago)   12h
+prometheus-kube-prometheus-stack-1764-prometheus-0                2/2     Running   2 (3h24m ago)   12h
+```
+
+**Loki Stack Namespace:**
+```bash
+kubectl get pods -n loki-stack
+```
+```text
+NAME                  READY   STATUS    RESTARTS        AGE
+loki-0                1/1     Running   1 (3h24m ago)   12h
+loki-promtail-fdfq9   1/1     Running   1 (3h24m ago)   12h
+loki-promtail-gcsjz   1/1     Running   1 (3h24m ago)   12h
+loki-promtail-nfn97   1/1     Running   1 (3h24m ago)   12h
+```
+- Grafana login screen (http://localhost:3000) 
+    ![captiobn](./images/00-graphana-home.png)
+
+### 4. Docker Image Build & Push
+```
+docker build -t arkb2023/todo-backend:2.10.1 .
+docker push arkb2023/todo-backend:2.10.1
 ```
 > Docker images are published at:  
-https://hub.docker.com/repository/docker/arkb2023/wiki-todo-cron/tags/2.9.3  
+https://hub.docker.com/repository/docker/arkb2023/todo-backend/tags/2.10.1  
 
 
-### 4. Deploy the project resources into the `project` namespace along with the `CronJob` manifest
+
+### 5. Deploy Project to `project` Namespace 
+
+**Setup Local PersistentVolume**  
+```bash
+docker exec k3d-mycluster-agent-0 mkdir -p /tmp/kube
+```
 
 ```bash
 kubectl apply -n project \
   -f the_project/todo_app/manifests/ \
   -f the_project/todo_backend/manifests/ \
   -f the_project/configmaps/ \
-  -f volumes/ \
-  -f the_project/cronjob/cron_wiki_todo.yaml
+  -f volumes/
+  
 ```
 
-*output:*
+### 6. Test Backend Validation (140 char limit)
 
+**6.1 Valid Todo (short text)**
+```bash
+http POST http://localhost:8081/todos/ text="Read https://en.wikipedia.org/wiki/Test"
+```
 ```text
-deployment.apps/todo-app-dep created
-ingress.networking.k8s.io/todo-app-ingress created
-service/todo-app-svc created
-deployment.apps/todo-backend-dep created
-ingress.networking.k8s.io/todo-backend-ingress created
-secret/postgres-db-secret created
-configmap/postgres-db-config created
-service/postgresql-db-svc created
-statefulset.apps/postgresql-db created
-service/todo-backend-svc created
-configmap/project-config-env created
-persistentvolume/local-pv created
-persistentvolumeclaim/local-pv-claim created
-cronjob.batch/wiki-todo-generator created
+HTTP/1.1 201 Created
+Content-Length: 118
+Content-Type: application/json
+Date: Sun, 30 Nov 2025 16:05:15 GMT
+Server: uvicorn
+
+{
+    "completed": false,
+    "created_at": "2025-11-30T16:05:16.752528Z",
+    "id": 1,
+    "text": "Read https://en.wikipedia.org/wiki/Test"
+}
 ```
 
-**Setup Local PersistentVolume**  
-To bind PersistentVolume to a local host path in a containerized node, create the backing storage directory inside the node container.  
+**6.2 Invalid Todo (>140 chars) - HTTP 422**
 ```bash
-docker exec k3d-k3s-default-agent-0 mkdir -p /tmp/kube
+http POST http://localhost:8081/todos/ text="'$(python3 -c "print('x'*150)")'"
 ```
-
-### 5. Validate functionality
-
-**Test CronJob manually (force immediate execution):**
-
-```bash
-kubectl create job --from=cronjob/wiki-todo-generator test-hourly-001 -n project
-```
-*Output:*
-```
-job.batch/test-hourly-001 created
-```
-
-**Check the job Status**
-```bash
-kubectl get pods -n project | grep test-hourly-001
-```
-*Output:*
 ```text
-test-hourly-001-jk244   0/1     Completed   0          38s
+HTTP/1.1 422 Unprocessable Entity
+Content-Length: 299
+Content-Type: application/json
+Date: Sun, 30 Nov 2025 16:06:23 GMT
+Server: uvicorn
+
+{
+    "detail": [
+        {
+            "ctx": {
+                "max_length": 140
+            },
+            "input": "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'",
+            "loc": [
+                "body",
+                "text"
+            ],
+            "msg": "String should have at most 140 characters",
+            "type": "string_too_long"
+        }
+    ]
+}
 ```
 
-**Check the job logs**
+**6.3 List All Todos**
 ```bash
-kubectl logs -n project job/test-hourly-001
+http GET http://localhost:8081/todos/
 ```
-*Output:*
 ```text
-todo text: Read https://en.wikipedia.org/wiki/Henry_Souther
-Created todo: Read https://en.wikipedia.org/wiki/Henry_Souther, Response status: 201
+HTTP/1.1 200 OK
+Content-Length: 357
+Content-Type: application/json
+Date: Sun, 30 Nov 2025 16:14:57 GMT
+Server: uvicorn
+
+[
+    {
+        "completed": false,
+        "created_at": "2025-11-30T16:05:16.752528Z",
+        "id": 1,
+        "text": "Read https://en.wikipedia.org/wiki/Test"
+    }
+]
 ```
+### 7. Grafana Loki Verification (Data Source: Loki) 
+- Query for all custom app logs:  
+  *{app="todo-backend"} |= `[todo_backend]`*  
+  ![caption](./images/01-full-query-editor-results-table-showing-multiple-log-lines.png)  
+- Query for Successfull todo requests  
+  *{app="todo-backend"} |= `todo_created_success`*  
+  ![caption](./images/02-success-todos-query.png)  
+- Rejected todos (>140 chars)  
+  *{app="todo-backend"} |= `todo_validation_failed`*  
+  ![caption](./images/03-rejected-todos-query.png)  
+- Query to filter all `/todos/` endpoint requests   
+  *{app="todo-backend"} |= `/todos/`*
+  ![caption](./images/06-all-todos-queries.png)
+- Dashboard for the app.
+  ![caption](./images/05-todo-backend-dashboard.png)
+- Terminal show todo backend application pod logs for coorelation
+  ![caption](./images/04-pod-logs-correlation.png)
 
-**Verify Wikipedia todo appears in UI:**
-![caption](./cronjob/images/03-wiki-todo-03-added-by-cronjobs.png)
-
-***
-
-### 6. Cleanup
-
-**Delete Manifests** 
-
-```bash
-kubectl delete -n project \
-  -f the_project/todo_app/manifests/ \
-  -f the_project/todo_backend/manifests/ \
-  -f the_project/configmaps/ \
-  -f volumes/ \
-  -f cronjob/cron_wiki_todo.yaml
+## 8. Cleanup Commands
 ```
-
----
+helm uninstall loki -n loki-stack
+helm uninstall prometheus -n prometheus
+kubectl delete namespace project
+```

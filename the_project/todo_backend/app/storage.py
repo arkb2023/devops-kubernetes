@@ -6,12 +6,8 @@ from sqlalchemy import select, and_
 from .models import Base, TodoDB, TodoCreate, TodoResponse, TodoUpdate
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-LOG_FORMAT = os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logging.basicConfig(level=LOG_LEVEL, format=LOG_FORMAT)
-logger = logging.getLogger(__name__)
-
-
-
+logger = logging.getLogger("todo_backend")
+logger.info(f"storage.py module loaded: LOG_LEVEL={LOG_LEVEL}")
 
 def get_required_env(var_name: str, default: str = None) -> str:
     """Check if env var exists, log status, return value or default"""
@@ -30,28 +26,35 @@ POSTGRES_DB = get_required_env("POSTGRES_DB", "undefined")
 POSTGRES_USER = get_required_env("POSTGRES_USER", "undefined")
 POSTGRES_PASSWORD = get_required_env("POSTGRES_PASSWORD")  # No default - will be empty!
 
-logger.info(f"Final DB URL:postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{DB_HOST}:{DB_PORT}/{POSTGRES_DB}")
-
-# Database config from env vars (Kubernetes ConfigMap/Secret)
-# DB_HOST = os.getenv("DB_HOST", "localhost")
-# DB_PORT = int(os.getenv("DB_PORT", "5432"))
-# POSTGRES_DB = os.getenv("POSTGRES_DB", "tododb")
-# POSTGRES_USER = os.getenv("POSTGRES_USER", "testdbuser")
-# POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "testdbuserassword")
+logger.info(f"storage.py: Final DB URL:postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{DB_HOST}:{DB_PORT}/{POSTGRES_DB}")
 
 DATABASE_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{DB_HOST}:{DB_PORT}/{POSTGRES_DB}"
 
-logger.info(f"DATABASE_URL {DATABASE_URL}")
+logger.info(f"storage.py: DATABASE_URL {DATABASE_URL}")
 
-engine = create_async_engine(DATABASE_URL, echo=True)
-logger.info(f"engine: {engine}")
-AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
+#engine = create_async_engine(DATABASE_URL, echo=True)
+engine = create_async_engine(DATABASE_URL, echo=False)
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,        # ✅ THIS SUPPRESSES ALL SQL LOGS
+    echo_pool=False,   # ✅ NO pool logs
+    future=True
+)
+logger.info(f"storage.py: engine: {engine}")
+#AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+# Disable SQLAlchemy Echo in Engine Creation (less log noise!)
+AsyncSessionLocal = sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autoflush=False,
+    autocommit=False
+)
 async def init_db():
     """Create tables on startup."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables created")
+    logger.info("storage.py: Database tables created")
 
 async def get_db_session() -> AsyncSession:
     async with AsyncSessionLocal() as session:

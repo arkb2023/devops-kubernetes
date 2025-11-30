@@ -40,3 +40,4 @@ secrets/
 *.pyc*
 *faq*
 cache/
+*local*

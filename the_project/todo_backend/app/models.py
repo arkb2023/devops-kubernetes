@@ -20,8 +20,9 @@ class TodoDB(Base):
     completed: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-# Pydantic models for API
 class TodoCreate(BaseModel):
+    # Enforces the 140-char limit
+    # FastAPI returns `422 Unprocessable Entity`
     text: str = Field(..., max_length=140, min_length=1)
 
 class TodoResponse(BaseModel):

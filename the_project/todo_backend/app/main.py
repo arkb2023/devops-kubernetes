@@ -1,18 +1,62 @@
-from fastapi import FastAPI
+import logging
+import os
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import JSONResponse
 from contextlib import asynccontextmanager
 from .storage import init_db, engine
 from fastapi.middleware.cors import CORSMiddleware
 from .routes import todos
 
+# 1. CONFIGURE LOGGING FIRST
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+LOG_FORMAT = "%(asctime)s [%(name)s] %(levelname)s %(message)s"
+
+# SUPPRESS NOISE
+logging.getLogger("uvicorn.access").setLevel(logging.INFO)
+logging.getLogger("uvicorn.error").setLevel(logging.ERROR)
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
+logging.getLogger("sqlalchemy.orm").setLevel(logging.WARNING)
+logging.getLogger("sqlalchemy.dialects").setLevel(logging.ERROR)
+logging.basicConfig(level=LOG_LEVEL, format=LOG_FORMAT)
+logger = logging.getLogger("todo_backend")
+logger.setLevel(logging.INFO)
+
+
+
+# 2. CREATE APP FIRST
+app = FastAPI(title="Todo API")
+
+# 3. ADD EXCEPTION HANDLERS (NOW app exists)
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.warning(
+        "todo_validation_failed",
+        extra={
+            "endpoint": request.url.path,
+            "method": request.method,
+            "error": exc.errors()[0]["msg"],
+            "input_length": len(str(exc.errors()[0].get("input", ""))),
+            "status": "rejected_422"
+        }
+    )
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    logger.warning("todo_http_error", extra={"status_code": exc.status_code})
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+# 4. LIFESPAN & MIDDLEWARE
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     await init_db()
     yield
-    # Shutdown
     await engine.dispose()
 
-app = FastAPI(title="Todo API", lifespan=lifespan)
+app.router.lifespan_context = lifespan  # FastAPI v0.100+
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,13 +66,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 5. ADD ROUTERS LAST
 app.include_router(todos.router)
-@app.get("/test")
-async def test():
-    return {"status": "ok"}
+
+# 6. ROOT ENDPOINTS
 @app.get("/")
 async def root():
     return {"message": "Todo API is running"}
+
+@app.get("/test")
+async def test():
+    return {"status": "ok"}
 
 # Run with: uvicorn app.main:app --reload
 

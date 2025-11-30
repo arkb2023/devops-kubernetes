@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..models import TodoCreate, TodoResponse, TodoUpdate, MessageResponse
@@ -7,12 +7,13 @@ from ..storage import (
 )
 import logging
 import os
-
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-LOG_FORMAT = os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("todo_backend") 
+# This inherits main.py's configuration automatically:
+# Level: INFO (from main.py basicConfig)
+# Format: %(asctime)s [%(name)s] %(levelname)s %(message)s (from main.py)
+# Handlers: stdout (from main.py)
 
-logging.basicConfig(level=LOG_LEVEL, format=LOG_FORMAT)
-logger = logging.getLogger(__name__)
 logger.info(f"todos.py module loaded: LOG_LEVEL={LOG_LEVEL}")
 
 router = APIRouter(prefix="/todos", tags=["todos"])
@@ -23,10 +24,42 @@ async def get_todos_route(db: AsyncSession = Depends(get_db_session)):
     return await get_todos(db)
 
 @router.post("/", response_model=TodoResponse, status_code=201)
-async def create_todo_route(todo: TodoCreate, db: AsyncSession = Depends(get_db_session)):
+async def create_todo_route(
+    request: Request,  # Add Request for logging,
+    todo: TodoCreate, 
+    db: AsyncSession = Depends(get_db_session)
+):
     """Create new todo."""
-    return await create_todo(db, todo)
+    logger.info(f"todos.py:create_todo_route called*****")
+    
+    # Log EVERY incoming POST /todos request
+    logger.info(
+        "todo_request_received",
+        extra={
+            "endpoint": "/todos",
+            "method": "POST",
+            "client_ip": request.client.host,
+            "text_preview": todo.text[:50] + "..." if len(todo.text) > 50 else todo.text,
+            "text_length": len(todo.text),
+            "status": "received"
+        }
+    )
 
+    result = await create_todo(db, todo)
+    
+    # Log SUCCESS
+    logger.info(
+        "todo_created_success",
+        extra={
+            "endpoint": "/todos",
+            "todo_id": result.id,
+            "text_preview": todo.text[:50] + "...",
+            "text_length": len(todo.text),
+            "status": "success"
+        }
+    )
+    
+    return result
 @router.get("/{todo_id}", response_model=TodoResponse)
 async def get_todo_route(todo_id: int, db: AsyncSession = Depends(get_db_session)):
     """Get single todo."""

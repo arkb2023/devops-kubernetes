@@ -1,43 +1,51 @@
-import subprocess
-import time
-import requests
 import pytest
+import httpx
+import logging
+import os
 
-BASE_URL = "http://127.0.0.1:8000"
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+LOG_FORMAT = os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
-@pytest.fixture(scope="module", autouse=True)
-def todo_backend_server():
-    # Start uvicorn server for todo-backend
-    proc = subprocess.Popen(
-        ["uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    # Wait for server to start listening
-    time.sleep(2)
+logging.basicConfig(level=LOG_LEVEL, format=LOG_FORMAT)
+logger = logging.getLogger(__name__)
 
-    yield  # Run tests
 
-    # Teardown, stop server
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
 
-def test_get_todos_empty():
-    resp = requests.get(f"{BASE_URL}/todos")
-    assert resp.status_code == 200
-    assert resp.json() == []
+TODO_BACKEND_URL = os.getenv("TODO_BACKEND_URL", "http://localhost:8081")
 
-def test_post_todo_and_get():
-    new_todo = {"text": "Test todo item"}
-    resp = requests.post(f"{BASE_URL}/todos", json=new_todo)
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data.get("message") == "Todo added successfully"
 
-    resp2 = requests.get(f"{BASE_URL}/todos")
-    todos = resp2.json()
-    assert any(todo["text"] == new_todo["text"] for todo in todos)
+
+@pytest.mark.asyncio
+async def test_create_and_list_todos(start_services):
+    async with httpx.AsyncClient() as client:
+
+        # Initially backend todo list empty
+        logger.info(f"Testing initial todo list from {TODO_BACKEND_URL}/todos")
+        resp = await client.get(f"{TODO_BACKEND_URL}/todos")
+        logger.info(f"Initial todo list response status: {resp.status_code}")
+        assert resp.status_code == 200
+        logger.info(f"Initial todo list response JSON: {resp.json()}")
+        assert resp.json() == []
+        logger.info("Backend initial todo list is empty as expected")
+
+        # Create a new todo via backend API
+        logger.info(f"Creating new todo via {TODO_BACKEND_URL}/todos")
+        new_todo = {"text": "First test todo"}
+        logger.info(f"New todo payload: {new_todo}")
+        resp = await client.post(f"{TODO_BACKEND_URL}/todos", json=new_todo)
+        logger.info(f"Create todo response status: {resp.status_code}")
+        assert resp.status_code == 201
+        logger.info(f"Create todo response JSON: {resp.json()}")
+        assert resp.json() == {"message": "Todo added successfully"}
+        logger.info("New todo created successfully via backend API")
+
+        # Backend todo list now contains the new todo
+        logger.info(f"Verifying todo list from {TODO_BACKEND_URL}/todos after addition")
+        resp = await client.get(f"{TODO_BACKEND_URL}/todos")
+        logger.info(f"Todo list response status: {resp.status_code}")
+        assert resp.status_code == 200
+        logger.info(f"Todo list response JSON: {resp.json()}")
+        todos = resp.json()
+        logger.info(f"Current todos: {todos}")
+        assert any(t["text"] == new_todo["text"] for t in todos)
+        logger.info("Backend todo list contains the newly added todo")

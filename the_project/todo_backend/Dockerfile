@@ -31,11 +31,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 
 #RUN chmod +x wait-for-it.sh
-#ENV DB_HOST="localhost"
-#ENV DB_PORT=5432
-#ENV DB_NAME="tododb"
-#ENV DB_USER="testdbuser"
-#ENV DB_PASSWORD="testdbuserpassword"
 ENV PORT=3000
 # Expose port
 #EXPOSE 8000

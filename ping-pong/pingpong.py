@@ -10,14 +10,14 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # Config from environment
-DB_USER = os.getenv("DB_USER", "testdbuser")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "testdbuserpassword")
+POSTGRES_USER = os.getenv("POSTGRES_USER", "testdbuser")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "testdbuserpassword")
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
-DB_NAME = os.getenv("DB_NAME", "testdb")
+POSTGRES_DB = os.getenv("POSTGRES_DB", "testdb")
 PGDATA = os.getenv("PGDATA", "/data/pgdata")
 
-DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+DATABASE_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{DB_HOST}:{DB_PORT}/{POSTGRES_DB}"
 logger.debug(f"Database URL: {DATABASE_URL}")
 # Async SQLAlchemy setup
 engine = create_async_engine(DATABASE_URL, echo=True)
