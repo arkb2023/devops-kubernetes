@@ -1,29 +1,17 @@
-## Exercise 2.7. Stateful applications
+## Exercise 3.1. Pingpong GKE
 
-Run a `Postgres` database as a stateful set and save the `Ping-pong` application counter into the database.
+Deploy Ping-pong application into GKE.
 
-**Resource Updates**
+**Key Changes from Base**
+- [`ping-pong/manifests/service.yaml`](./manifests/service.yaml) - Changed `type: ClusterIP` → `type: LoadBalancer`
+- [`postgresql/postgresql-statefulset.yaml`](../postgresql/postgresql-statefulset.yaml) - Commented out `storageClassName: local-path`, letting GKE use default
 
-- **Created [`postgresql/`](../postgresql/) directory** with new manifests for stateful PostgreSQL deployment:
-  - [`postgresql-configmap.yaml`](../postgresql/postgresql-configmap.yaml): Defines Postgres initialization env vars and app connection vars.
-  - [`postgresql-service.yaml`](../postgresql/postgresql-service.yaml): Headless Service `clusterIP: None` for stable pod DNS discovery `postgresql-db-svc.exercises.svc.cluster.local`.
-  - [`postgresql-statefulset.yaml`](../postgresql/postgresql-statefulset.yaml): StatefulSet with 2 replicas, `envFrom` referencing ConfigMap and `volumeClaimTemplates` (100Mi local-path storage)
-- **Updated `ping-pong` app [`deployment.yaml`](./manifests/deployment.yaml)**:
-  - Added `envFrom` reference to `postgres-db-config` ConfigMap for database connectivity.
-  - Pod template now receives Postgres connection details automatically.
-
-## Application Updates
-
-- **Refactored `ping-pong/pingpong.py`** from in-memory counter to PostgreSQL with asyncpg and SQLAlchemy ORM:
-  - Replaced in-memory `Counter` with PostgreSQL-backed counter using `pingpong_counter` table.
-  - `/pingpong` endpoint atomically increments the counter and returns the new value in a single database operation.
-  - `/pings` endpoint fetches the current counter by selecting the stored value from the pingpong_counter table where the record ID is 1.
-  - Startup event creates table schema and initializes id=1, value=0 row if missing.
-
-- Base application versions used:  
-  - [Ping pong v2.1](https://github.com/arkb2023/devops-kubernetes/tree/2.1/ping-pong)  
+- Base versions used:  
+  - [Ping pong v2.7](https://github.com/arkb2023/devops-kubernetes/tree/2.7/ping-pong)  
+  - [Docker image v2.7.2](https://hub.docker.com/repository/docker/arkb2023/ping-pong/tags/2.7.2)  
 
 ***
+
 
 ### 1. **Directory and File Structure**
 <pre>
@@ -44,82 +32,77 @@ postgresql/
 ***
 
 
-### 2. Prerequisites
+### 2. Prerequisites (GCP/GKE)
 
-- Ensure the following tools are installed:
-  - Docker  
-  - k3d (K3s in Docker)  
-  - kubectl (Kubernetes CLI)
-- Create and run a Kubernetes cluster with k3d, using 2 agent nodes and port mapping to expose the ingress load balancer on host port 8081:
-    ```bash
-    k3d cluster create mycluster --agents 2 --port 8081:80@loadbalancer
-    ```
-- `project` namespace created in the cluster
-    ```bash
-    kubectl create exercises project
-    ```
+- **Google Cloud CLI** (`gcloud`) updated to 548.0.0
+- **kubectl** (Kubernetes CLI) with `gke-gcloud-auth-plugin`
+- **GCP Project**: `dwk-gke-480015` configured
 
-***
-
-### 3. Build and Push the Docker Image to DockerHub
-
+**Cluster Creation**:
 ```bash
-cd ping-pong
-docker build -t arkb2023/ping-pong:2.7.2 .
-docker push arkb2023/ping-pong:2.7.2
+gcloud container clusters create dwk-cluster
+--zone=asia-south1-a
+--cluster-version=1.32
+--disk-size=32
+--num-nodes=3
+--machine-type=e2-micro
 ```
-> Docker images are published at:  
-https://hub.docker.com/repository/docker/arkb2023/ping-pong/tags/2.7.2  
-
-### 4. **Deploy to Kubernetes**
-
-**Apply the `ping-pong` application and `postgress` Manifests**  
-
 ```bash
-kubectl apply \
-  -n exercises \
-  -f postgresql/ \
-  -f ping-pong/manifests/
+gcloud container clusters get-credentials dwk-cluster --zone=asia-south1-a
 ```
-*Output*
-```text
-configmap/postgres-db-config created
-service/postgresql-db-svc created
-statefulset.apps/postgresql-db created
-deployment.apps/ping-pong-dep created
-ingress.networking.k8s.io/dwk-ping-pong-ingress created
-service/ping-pong-svc created
+- **`project` namespace creation:**
+```bash
+kubectl create namespace exercises
 ```
 
 ***
 
-### Validate
+### 3. **Deploy to Kubernetes**
 
-- **Postgres pods are Running and PVCs are Bound:**
+**Apply PostgreSQL and ping-pong manifests**:  
+```bash
+kubectl apply -n exercises -f postgresql/
+kubectl apply -n exercises -f ping-pong/manifests/
+```
 
-  **Verify pod status:**
+
+### 4. Validate
+
+- **Verify PVCs bound successfully**:  
   ```bash
-  kubectl -n exercises get pods
+  kubectl get pvc -n exercises
   ```
-  *Output:*
+  *Output*
   ```text
-  NAME                            READY   STATUS    RESTARTS   AGE
-  ping-pong-dep-5fd4696644-67lt7 1/1     Running   0          14m
-  postgresql-db-0                1/1     Running   0          49m
-  postgresql-db-1                1/1     Running   0          49m
+  NAME                                 STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+  postgresql-db-disk-postgresql-db-0   Bound    pvc-b9c205ca-7398-41fc-a099-c942d53ca11d   1Gi        RWO            standard       <unset>                 19m
+  postgresql-db-disk-postgresql-db-1   Bound    pvc-42d60e2e-6f94-438e-a3f4-04ff9e7b244c   1Gi        RWO            standard       <unset>                 13m
   ```
 
-  **Verify PVC status:**
+- **Verify all pods Running**:
   ```bash
-  kubectl -n exercises get pvc
+  kubectl get pods -n exercises
   ```
-  *Output:*
+  *Output*
   ```text
-  NAME                                STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
-  postgresql-db-disk-postgresql-db-0  Bound    pvc-8f5cd105-8565-4fab-b15e-1dc1a17aee18  100Mi      RWO            local-path     <unset>                    42m
-  postgresql-db-disk-postgresql-db-1  Bound    pvc-2ad2c4bd-5184-42e4-a88a-9f8709e12035  100Mi      RWO            local-path     <unset>                    42m
+  NAME                             READY   STATUS    RESTARTS   AGE
+  ping-pong-dep-6dd57fcf7f-fh8s8   1/1     Running   0          17m
+  ping-pong-dep-cd4c69b85-xwkj9    1/1     Running   0          31s
+  postgresql-db-0                  1/1     Running   0          20m
+  postgresql-db-1                  1/1     Running   0          19m
   ```
+- **Connect to Postgres to check data**
+  ```bash
+  kubectl exec -it -n exercises postgresql-db-0 -- bashsh
+  ```
+  *Output*
+  ```text
+  root@postgresql-db-0:/# psql -U testdbuser -d testdb
+  psql (18.1 (Debian 18.1-1.pgdg13+2))
+  Type "help" for help.
 
+  testdb=#
+  ```
 - **Get initial value by hitting `/pings` HTTP endpoint:**  
   Verify the application response value matches the Postgres database value.  
 
@@ -129,13 +112,14 @@ service/ping-pong-svc created
 
   - Database query confirms `0`:  
     ```bash
-    SELECT * FROM pingpong_counter;
+    testdb=# SELECT * FROM pingpong_counter;
+    ```
     ```
     *Output:*  
     ```text
     id | value
     ----+-------
-     1 |     0
+      1 |     0
     (1 row)
     ```
 
@@ -194,11 +178,12 @@ service/ping-pong-svc created
     ```
     *Output:*  
     ```text
-    NAME                            READY   STATUS        RESTARTS   AGE
-    ping-pong-dep-5fd4696644-67lt7 1/1     Terminating   0          36m
-    ping-pong-dep-bd5dbfd55-hvvpb  1/1     Running       0          28s
-    postgresql-db-0                1/1     Running       0          71m
-    postgresql-db-1                1/1     Running       0          71m
+    NAME                             READY   STATUS              RESTARTS   AGE
+    ping-pong-dep-6dd57fcf7f-fh8s8   1/1     Running             0          17m
+    ping-pong-dep-cd4c69b85-xwkj9    0/1     ContainerCreating   0          9s
+    postgresql-db-0                  1/1     Running             0          19m
+    postgresql-db-1                  1/1     Running             0          19m
+    ping-pong-dep-cd4c69b85-xwkj9    1/1     Running             0          10s
     ```
     ```bash
     kubectl -n exercises get pods
@@ -206,9 +191,10 @@ service/ping-pong-svc created
     *Output:*  
     ```text
     NAME                           READY   STATUS    RESTARTS   AGE
-    ping-pong-dep-bd5dbfd55-hvvpb 1/1     Running   0          81s
-    postgresql-db-0                1/1     Running   0          72m
-    postgresql-db-1                1/1     Running   0          72m
+    ping-pong-dep-6dd57fcf7f-fh8s8   1/1     Running   0          17m
+    ping-pong-dep-cd4c69b85-xwkj9    1/1     Running   0          31s
+    postgresql-db-0                  1/1     Running   0          20m
+    postgresql-db-1                  1/1     Running   0          19m
     ```
 
   - `/pingpong` returns `pong: N+1` continuing from the previous value:  
@@ -233,33 +219,23 @@ service/ping-pong-svc created
 
 **Delete Manifests** 
   ```bash
-  kubectl delete \
-    -n exercises \
-    -f postgresql/ \
-    -f ping-pong/manifests/
+  kubectl delete -n exercises -f ping-pong/manifests/
+  kubectl delete -n exercises -f postgresql/
   ```
-  *Output*
-  ```text
-  configmap "postgres-db-config" deleted from exercises namespace
-  service "postgresql-db-svc" deleted from exercises namespace
-  statefulset.apps "postgresql-db" deleted from exercises namespace
-  deployment.apps "ping-pong-dep" deleted from exercises namespace
-  ingress.networking.k8s.io "dwk-ping-pong-ingress" deleted from exercises namespace
-  service "ping-pong-svc" deleted from exercises namespace
-  ```
-
+  
 **Stop the k3d Cluster**  
 ```bash
-k3d cluster delete k3s-default
+gcloud container clusters delete dwk-cluster --zone=asia-south1-a
 ```
 *Output*
 ```text
-INFO[0000] Deleting cluster 'k3s-default'
-INFO[0003] Deleting cluster network 'k3d-k3s-default'
-INFO[0003] Deleting 1 attached volumes...
-INFO[0003] Removing cluster details from default kubeconfig...
-INFO[0003] Removing standalone kubeconfig file (if there is one)...
-INFO[0003] Successfully deleted cluster k3s-default!
+The following clusters will be deleted.
+ - [dwk-cluster] in [asia-south1-a]
+
+Do you want to continue (Y/n)?  Y
+
+Deleting cluster dwk-cluster...done.
+Deleted [https://container.googleapis.com/v1/projects/dwk-gke-480015/zones/asia-south1-a/clusters/dwk-cluster].
 ```
 
 ---
