@@ -12,7 +12,7 @@ Deploy the "Log output" and "Ping-pong" applications into GKE and expose it with
       ingress.gcp.kubernetes.io/healthcheck-path: "/pings"
   ```
 - Base versions used:  
-  - [Ping pong v3.1](https://github.com/arkb2023/devops-kubernetes/tree/2.7/ping-pong)  
+  - [Ping pong v3.1](https://github.com/arkb2023/devops-kubernetes/tree/3.1/ping-pong)  
   - [Log output v2.5](https://github.com/arkb2023/devops-kubernetes/tree/2.5/log_output)  
 ***
 
