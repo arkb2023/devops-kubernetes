@@ -3,6 +3,8 @@ kind: Ingress
 metadata:
   namespace: exercises
   name: dwk-ping-pong-ingress
+  annotations:
+    ingress.gcp.kubernetes.io/healthcheck-path: "/pings"
 spec:
   rules:
   - http:

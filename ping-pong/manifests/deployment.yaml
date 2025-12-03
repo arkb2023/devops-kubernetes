@@ -13,16 +13,15 @@ spec:
       labels:
         app: ping-pong
     spec:
-      # volumes:
-      #   - name: shared-image
-      #     persistentVolumeClaim:
-      #       claimName: local-pv-claim
       containers:
         - name: ping-pong
-          image: arkb2023/ping-pong:2.7.2
-          # volumeMounts:
-          # - name: shared-image
-          #   mountPath: /usr/src/app/files
+          image: arkb2023/ping-pong:3.2.5
           envFrom:
           - configMapRef:
               name: postgres-db-config
+          readinessProbe:
+            httpGet:
+              path: /pings      # Use existing endpoint for health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
