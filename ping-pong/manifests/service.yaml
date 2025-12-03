@@ -4,14 +4,7 @@ metadata:
   namespace: exercises
   name: ping-pong-svc
 spec:
-  ## Enable for local cluster exercises up to 2.*
-  #type: ClusterIP
-
-  ## Enable for 3.1 - GKE cluster deployment
-  ## type: LoadBalancer
-
-  ## for 3.2 - GKE cluster deployment
-  type: NodePort
+  type: ClusterIP
   selector:
     app: ping-pong
   ports:

@@ -1,31 +1,27 @@
-## Exercise 3.2 Back to Ingress
+## Exercise 3.3. To the Gateway
 
-Deploy the "Log output" and "Ping-pong" applications into GKE and expose it with Ingress.
-
+Replace `Ingress` with Kubernetes `Gateway API` using `HTTPRoute` for path-based routing to `ping-pong` and `log-output` applications.
 
 **Key Changes from Base**
-- [`ping-pong/manifests/deployment.yaml`](./manifests/deployment.yaml) - Added `readinessProbe` with `httpGet` to `/pings` endpoint for health checks
-- [`ping-pong/manifests/service.yaml`](./manifests/service.yaml) - Changed `type: LoadBalancer` → `type: NodePort` -- GKE Ingress requirement
-- [`ping-pong/manifests/ingress.yaml`](./manifests/ingress.yaml) - Added GKE health check annotation:
-  ```yaml
-    annotations:
-      ingress.gcp.kubernetes.io/healthcheck-path: "/pings"
-  ```
-- Base versions used:  
-  - [Ping pong v3.1](https://github.com/arkb2023/devops-kubernetes/tree/3.1/ping-pong)  
-  - [Log output v2.5](https://github.com/arkb2023/devops-kubernetes/tree/2.5/log_output)  
-***
+  - [`ping-pong/manifests/gateway.yaml`](./manifests/gateway.yaml) - Single HTTP listener port 80 with `log-ping-app-gateway` LoadBalancer
+  - [`ping-pong/manifests/ping-pong-route.yaml`](./manifests/ping-pong-route.yaml) - HTTPRoute `/pingpong` and `/pings` to `ping-pong-svc:3456`
+  - [`log_output/manifests/log-output-route.yaml`](../log_output/manifests/log-output-route.yaml) - HTTPRoute `/` to `log-output-svc:80`
 
+- Base versions used:  
+  - [Ping pong and Log output v3.2](https://github.com/arkb2023/devops-kubernetes/tree/3.2/ping-pong)  
+  
+***
 
 ### 1. **Directory and File Structure**
 <pre>
 log_output
 ├── README.md
 ├── manifests
+│   ├── log-output-route.yaml
 │   ├── configmap.yaml
 │   ├── deployment.yaml
 │   ├── ingress.yaml
-│   │   └── service.yaml
+│   ├── service.yaml
 │   └── reader
 │       ├── Dockerfile
 │       └── reader.py
@@ -34,7 +30,9 @@ ping-pong/
 ├── README.md
 ├── manifests
 │   ├── deployment.yaml
+│   ├── gateway.yaml
 │   ├── ingress.yaml
+│   ├── ping-pong-route.yaml
 │   └── service.yaml
 └── pingpong.py
 postgresql/
@@ -60,47 +58,43 @@ postgresql/
     --num-nodes=3 \
     --machine-type=e2-micro
   ```
+- **Enable Gateway API on the cluster**  
+  ```bash
+  gcloud container clusters update dwk-cluster \
+    --zone=asia-south1-a \
+    --gateway-api=standard
+  ```
+- **Fetch and configure Kubernetes cluster access credentials locally, enabling kubectl to authenticate and manage the specified GKE cluster**  
   ```bash
   gcloud container clusters get-credentials dwk-cluster --zone=asia-south1-a
   ```
 - **Utility Variables**:
   ```bash
   export NAMESPACE=exercises
-  export PING_INGRESS="dwk-ping-pong-ingress"
-  export LOG_INGRESS="dwk-log-output-ingress"
   ```
 - **Namespace creation:**
   ```bash
   kubectl create namespace ${NAMESPACE}
   ```
-***
 
 ### 3. **Deploy to Kubernetes**
 
 - **Deploy PostgreSQL**:  
   ```bash
-  kubectl apply -n ${NAMESPACE} -f postgresql/
+  kubectl apply -n exercises \
+      -f ./postgresql/postgresql-service.yaml \
+      -f ./postgresql/postgresql-configmap.yaml \
+      -f ./postgresql/postgresql-statefulset.yaml
   ```
 - **Wait for the Pods to be in Running state**
   ```bash
   kubectl get pods -n ${NAMESPACE} -l app=postgresql-db
-  ```
-  *Output*
-  ```text
-  NAME              READY   STATUS    RESTARTS   AGE
-  postgresql-db-0   1/1     Running   0          48m
-  postgresql-db-1   1/1     Running   0          41m
+  kubectl describe pods -n ${NAMESPACE}  -l app=postgresql-db
   ```
 
 - **PVC Should show Bound status**
   ```bash
   kubectl get pvc -n ${NAMESPACE}
-  ```
-  *Output*
-  ```text
-  NAME                                 STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
-  postgresql-db-disk-postgresql-db-0   Bound    pvc-2fcfa9d4-b6be-4076-80f3-5b557c270fb4   1Gi        RWO            standard-rwo   <unset>                 49m
-  postgresql-db-disk-postgresql-db-1   Bound    pvc-5ec78685-e1e4-4803-94e8-430678fdc804   1Gi        RWO            standard-rwo   <unset>                 43m
   ```
 
 - **Initialize database table**
@@ -114,126 +108,256 @@ postgresql/
     SELECT 'Table ready!' as status;
     "
   ```
-  ```text
-  CREATE TABLE
-  INSERT 0 1
-      status
-  --------------
-  Table ready!
-  (1 row)
-  ```
-- **Deploy ping-pong application**
+
+- **Deploy `ping-pong` application**
   ```bash
-  kubectl apply -n $NAMESPACE -f ping-pong/manifests/
+  kubectl apply -n exercises \
+    -f ./ping-pong/manifests/deployment.yaml \
+    -f ./ping-pong/manifests/service.yaml
   ```
 
 - **Wait for the Pods to be in Running state**
   ```bash
   kubectl get pods -n ${NAMESPACE} -l app=ping-pong
   ```
-  *Output*
-  ```text
-  NAME                             READY   STATUS    RESTARTS   AGE
-  ping-pong-dep-69fdc79868-qghs9   1/1     Running   0          31m
+
+- **Deploy `log-output` application**
+  ```bash
+  kubectl apply -n exercises \
+      -f ./log_output/manifests/deployment.yaml \
+      -f ./log_output/manifests/configmap.yaml \
+      -f ./log_output/manifests/service.yaml
   ```
 
-- **Wait for Ping-pong Ingress backend to become healthy**    
+- **Wait for the Pods to be in Running state**
   ```bash
-  kubectl -n ${NAMESPACE} describe ingress dwk-ping-pong-ingress
+  kubectl get pods -n ${NAMESPACE} -l app=log-output
+  ```
+  
+- **Deploy Gateway**
+  ```bash
+  kubectl apply -n exercises -f ping-pong/manifests/gateway.yaml
   ```
   *Output*
   ```text
-  Name:             dwk-ping-pong-ingress
-  Labels:           <none>
-  Namespace:        exercises
-  Address:          35.244.202.196
-  Ingress Class:    <none>
-  Default backend:  <default>
-  Rules:
-    Host        Path  Backends
-    ----        ----  --------
-    *
-                /pingpong   ping-pong-svc:3456 (10.108.2.7:3000)
-                /pings      ping-pong-svc:3456 (10.108.2.7:3000)
-  Annotations:  ingress.gcp.kubernetes.io/healthcheck-path: /pings
-                ingress.kubernetes.io/backends:
-                  {"k8s1-62f840ff-exercises-ping-pong-svc-3456-508c37a1":"HEALTHY","k8s1-62f840ff-kube-system-default-http-backend-80-89655fba":"HEALTHY"}
-                ingress.kubernetes.io/forwarding-rule: k8s2-fr-0opblubv-exercises-dwk-ping-pong-ingress-czlgrqko
-                ingress.kubernetes.io/target-proxy: k8s2-tp-0opblubv-exercises-dwk-ping-pong-ingress-czlgrqko
-                ingress.kubernetes.io/url-map: k8s2-um-0opblubv-exercises-dwk-ping-pong-ingress-czlgrqko
+  gateway.gateway.networking.k8s.io/log-ping-app-gateway created
+  ```
+- **Verify gateway status**
+  ```bash
+  kubectl -n ${NAMESPACE} describe gateway log-ping-app-gateway
+  ```
+  *Output*
+  ```text
+  Name:         log-ping-app-gateway
+  Namespace:    exercises
+  Labels:       <none>
+  Annotations:  networking.gke.io/last-reconcile-time: 2025-12-03T16:43:04Z
+  API Version:  gateway.networking.k8s.io/v1
+  Kind:         Gateway
+  Metadata:
+    Creation Timestamp:  2025-12-03T16:42:59Z
+    Finalizers:
+      gateway.finalizer.networking.gke.io
+    Generation:        1
+    Resource Version:  1764780184308495017
+    UID:               c361f45e-2271-40cb-8a84-1a474bc676ff
+  Spec:
+    Gateway Class Name:  gke-l7-global-external-managed
+    Listeners:
+      Allowed Routes:
+        Namespaces:
+          From:  Same
+      Name:      pingpong
+      Port:      80
+      Protocol:  HTTP
+  Status:
+    Conditions:
+      Last Transition Time:  2025-12-03T16:43:04Z
+      Message:               The OSS Gateway API has deprecated this condition, do not depend on it.
+      Observed Generation:   1
+      Reason:                Scheduled
+      Status:                True
+      Type:                  Scheduled
+      Last Transition Time:  2025-12-03T16:43:04Z
+      Message:
+      Observed Generation:   1
+      Reason:                Accepted
+      Status:                True
+      Type:                  Accepted
+    Listeners:
+      Attached Routes:  0
+      Conditions:
+        Last Transition Time:  2025-12-03T16:43:04Z
+        Message:
+        Observed Generation:   1
+        Reason:                ResolvedRefs
+        Status:                True
+        Type:                  ResolvedRefs
+        Last Transition Time:  2025-12-03T16:43:04Z
+        Message:
+        Observed Generation:   1
+        Reason:                Accepted
+        Status:                True
+        Type:                  Accepted
+      Name:                    pingpong
+      Supported Kinds:
+        Group:  gateway.networking.k8s.io
+        Kind:   HTTPRoute
   Events:
-    Type     Reason     Age                   From                     Message
-    ----     ------     ----                  ----                     -------
-    Warning  Translate  50m                   loadbalancer-controller  Translation failed: invalid ingress spec: could not find service "exercises/ping-pong-svc"; could not find service "exercises/ping-pong-svc"
-    Normal   Sync       47m                   loadbalancer-controller  UrlMap "k8s2-um-0opblubv-exercises-dwk-ping-pong-ingress-czlgrqko" created
-    Normal   Sync       47m                   loadbalancer-controller  TargetProxy "k8s2-tp-0opblubv-exercises-dwk-ping-pong-ingress-czlgrqko" created
-    Normal   Sync       47m                   loadbalancer-controller  ForwardingRule "k8s2-fr-0opblubv-exercises-dwk-ping-pong-ingress-czlgrqko" created
-    Normal   IPChanged  47m                   loadbalancer-controller  IP is now 35.244.202.196
-    Normal   Sync       7m56s (x11 over 50m)  loadbalancer-controller  Scheduled for sync
+    Type    Reason  Age   From                   Message
+    ----    ------  ----  ----                   -------
+    Normal  ADD     58s   sc-gateway-controller  exercises/log-ping-app-gateway
+    Normal  UPDATE  58s   sc-gateway-controller  exercises/log-ping-app-gateway
   ```
-  > Output shows:  
-  > k8s1-62f840ff-exercises-ping-pong-svc-3456-508c37a1":"HEALTHY"  
-  > Note down the Ping Pong Ingress address: 35.244.202.196   
-  *Set it in a variable for ease of use later*  
+- **Deploy HTTP-Routes for `ping-pong` application**
   ```bash
-  PINGPONG_INGRESS_IP="35.244.202.196"
-  ```
-
-- **Deploy log-output application**
-  ```bash
-  kubectl apply -n $NAMESPACE -f log_output/manifests/
-  ```
-
-- **Wait for log-output Ingress to become healthy**
-  ```bash
-  kubectl describe ingress ${LOG_INGRESS} -n ${NAMESPACE}
+  kubectl apply -n exercises -f ping-pong/manifests/ping-pong-route.yaml  
   ```
   *Output*
   ```text
-  Name:             dwk-log-output-ingress
-  Labels:           <none>
-  Namespace:        exercises
-  Address:          34.144.232.237
-  Ingress Class:    <none>
-  Default backend:  <default>
-  Rules:
-    Host        Path  Backends
-    ----        ----  --------
-    *
-                /   log-output-svc:80 (10.108.0.8:3000)
-  Annotations:  ingress.kubernetes.io/backends:
-                  {"k8s1-62f840ff-exercises-log-output-svc-80-2a0f5f5f":"HEALTHY","k8s1-62f840ff-kube-system-default-http-backend-80-89655fba":"HEALTHY"}
-                ingress.kubernetes.io/forwarding-rule: k8s2-fr-0opblubv-exercises-dwk-log-output-ingress-k7icfv8l
-                ingress.kubernetes.io/target-proxy: k8s2-tp-0opblubv-exercises-dwk-log-output-ingress-k7icfv8l
-                ingress.kubernetes.io/url-map: k8s2-um-0opblubv-exercises-dwk-log-output-ingress-k7icfv8l
-  Events:
-    Type     Reason     Age                   From                     Message
-    ----     ------     ----                  ----                     -------
-    Warning  Translate  39m (x6 over 39m)     loadbalancer-controller  Translation failed: invalid ingress spec: could not find service "exercises/log-output-svc"
-    Normal   Sync       37m                   loadbalancer-controller  UrlMap "k8s2-um-0opblubv-exercises-dwk-log-output-ingress-k7icfv8l" created
-    Normal   Sync       37m                   loadbalancer-controller  TargetProxy "k8s2-tp-0opblubv-exercises-dwk-log-output-ingress-k7icfv8l" created
-    Normal   Sync       37m                   loadbalancer-controller  ForwardingRule "k8s2-fr-0opblubv-exercises-dwk-log-output-ingress-k7icfv8l" created
-    Normal   IPChanged  37m                   loadbalancer-controller  IP is now 34.144.232.237
-    Normal   Sync       5m38s (x11 over 39m)  loadbalancer-controller  Scheduled for sync
+  httproute.gateway.networking.k8s.io/ping-pong-route created
   ```
-  > Output shows:  
-  > "k8s1-62f840ff-exercises-log-output-svc-80-2a0f5f5f":"HEALTHY",  
-  > Note down the Ping Pong Ingress address: 34.144.232.237  
-  *Set it in a variable for ease of use later*  
+- **Verify route configuration**
   ```bash
-  LOGOUTPUT_INGRESS_IP="136.110.197.45"
+  kubectl  -n exercises describe httproute ping-pong-route
   ```
+  *Output*
+  ```text
+  Name:         ping-pong-route
+  Namespace:    exercises
+  Labels:       <none>
+  Annotations:  <none>
+  API Version:  gateway.networking.k8s.io/v1
+  Kind:         HTTPRoute
+  Metadata:
+    Creation Timestamp:  2025-12-03T16:46:04Z
+    Generation:          1
+    Resource Version:    1764780364460479020
+    UID:                 20c99bac-b68a-4d27-adbc-8bcd93fed3ec
+  Spec:
+    Parent Refs:
+      Group:  gateway.networking.k8s.io
+      Kind:   Gateway
+      Name:   log-ping-app-gateway
+    Rules:
+      Backend Refs:
+        Group:
+        Kind:    Service
+        Name:    ping-pong-svc
+        Port:    3456
+        Weight:  1
+      Matches:
+        Path:
+          Type:   PathPrefix
+          Value:  /pingpong
+        Path:
+          Type:   PathPrefix
+          Value:  /pings
+  Events:
+    Type    Reason  Age   From                   Message
+    ----    ------  ----  ----                   -------
+    Normal  ADD     69s   sc-gateway-controller  exercises/ping-pong-route
+  ```
+- **Deploy HTTP-Routes for `log-output` application**
+  ```bash
+  kubectl apply -n exercises -f log_output/manifests/log-output-route.yaml  
+  ```
+  *Output*
+  ```text
+  httproute.gateway.networking.k8s.io/log-output-route created
+  ```
+- **Verify route configuration**
+  ```bash
+  kubectl -n exercises describe httproute log-output-route
+  ```
+  *Output*
+  ```text
+  Name:         log-output-route
+  Namespace:    exercises
+  Labels:       <none>
+  Annotations:  <none>
+  API Version:  gateway.networking.k8s.io/v1
+  Kind:         HTTPRoute
+  Metadata:
+    Creation Timestamp:  2025-12-03T16:46:18Z
+    Generation:          1
+    Resource Version:    1764780378928639013
+    UID:                 ab25f5a6-001b-45f5-8d83-e1ebe073fc9d
+  Spec:
+    Parent Refs:
+      Group:  gateway.networking.k8s.io
+      Kind:   Gateway
+      Name:   log-ping-app-gateway
+    Rules:
+      Backend Refs:
+        Group:
+        Kind:    Service
+        Name:    log-output-svc
+        Port:    8080
+        Weight:  1
+      Matches:
+        Path:
+          Type:   PathPrefix
+          Value:  /
+  Events:
+    Type    Reason  Age   From                   Message
+    ----    ------  ----  ----                   -------
+    Normal  ADD     29s   sc-gateway-controller  exercises/log-output-route
+  ```
+- **Verify all 3 pods Running**
+  ```bash
+  kubectl get pods -n exercises -w  
+  ```
+  *Output*
+  ```text
+  NAME                              READY   STATUS    RESTARTS   AGE
+  log-output-dep-65d4dd9b55-ldbgt   1/1     Running   0          46s
+  ping-pong-dep-7f68b8df89-sm4p2    1/1     Running   0          20m
+  postgresql-db-0                   1/1     Running   0          23m
+  postgresql-db-1                   1/1     Running   0          23m
+  ```
+- **Wait for GKE Gateway controller to fully set up the external load balancer**
+  ```bash
+  kubectl get gateway log-ping-app-gateway -n exercises -w
+  ```
+  **Output**
+  ```text
+  NAME                   CLASS                            ADDRESS       PROGRAMMED   AGE
+  log-ping-app-gateway   gke-l7-global-external-managed   34.8.36.183   True         14m
+  ```
+  > Wait for `ADDRESS` to populate and `PROGRAMMED` to switch to True
+- **Verify overall health of the configured entities**
+  ```bash
+  kubectl get all -n exercises
+  ```
+  ```text
+  NAME                                  READY   STATUS    RESTARTS   AGE
+  pod/log-output-dep-65d4dd9b55-ldbgt   1/1     Running   0          13m
+  pod/ping-pong-dep-7f68b8df89-sm4p2    1/1     Running   0          33m
+  pod/postgresql-db-0                   1/1     Running   0          36m
+  pod/postgresql-db-1                   1/1     Running   0          35m
 
+  NAME                        TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
+  service/log-output-svc      ClusterIP   34.118.238.160   <none>        80/TCP     32m
+  service/ping-pong-svc       ClusterIP   34.118.233.57    <none>        3456/TCP   33m
+  service/postgresql-db-svc   ClusterIP   None             <none>        5432/TCP   36m
+
+  NAME                             READY   UP-TO-DATE   AVAILABLE   AGE
+  deployment.apps/log-output-dep   1/1     1            1           32m
+  deployment.apps/ping-pong-dep    1/1     1            1           33m
+
+  NAME                                        DESIRED   CURRENT   READY   AGE
+  replicaset.apps/log-output-dep-65d4dd9b55   1         1         1       13m
+  replicaset.apps/log-output-dep-86b9b9dd59   0         0         0       32m
+  replicaset.apps/ping-pong-dep-7f68b8df89    1         1         1       33m
+
+  NAME                             READY   AGE
+  statefulset.apps/postgresql-db   2/2     36m
+  ```
 
 ### 4. Validate
 
-  Access App URLs via:
-  - PingPong App reachable at: 
-    - `http://${PINGPONG_INGRESS_IP}/pings`
-    - `http://${PINGPONG_INGRESS_IP}/pingpong`
-  - LogOutput App reachable at: 
-    - `http://${LOGOUTPUT_INGRESS_IP}/`
-
+  Use the Gateway Address (http://34.8.36.183/) to access the applications: 
 - **Test Log Output App response on `/` HTTP endpoint:**  
 
   - Application returns the expected response  
@@ -250,39 +374,59 @@ postgresql/
   - Application returns `N+1` value as expected  
     ![caption](../log_output/images/03-ping-pong-pingpong-response.png)  
 
-- **Test Log Output App response on `/` HTTP endpoint:**  
-
-  - Application response consistent with previous ping count  
-    ![caption](../log_output/images/04-log-output-response.png)  
-
 ### 6. **Cleanup**
 
-**Delete Manifests** 
-  ```bash
-  kubectl delete -n ${NAMESPACE} -f log_output/manifests/
-  kubectl delete -n ${NAMESPACE} -f ping-pong/manifests/
-  kubectl delete -n ${NAMESPACE} -f postgresql/
-  ```
-  
-**Stop the Cluster**  
+**Delete the provisioned resources**
 ```bash
-gcloud container clusters delete dwk-cluster --zone=asia-south1-a
-```
-*Output*
-```text
-The following clusters will be deleted.
- - [dwk-cluster] in [asia-south1-a]
+kubectl delete -n exercises \
+    httproute ping-pong-route log-output-route
+kubectl delete -n exercises \
+    gateway log-ping-app-gateway
+kubectl delete -n exercises \
+  deployment ping-pong-dep log-output-dep
+  
+kubectl delete -n exercises \
+  statefulset postgresql-db \
 
-Do you want to continue (Y/n)?  Y
+kubectl delete -n exercises \
+  service ping-pong-svc log-output-svc postgresql-db-svc
+  
+kubectl delete -n exercises configmap log-output-config
+  
+# Wait for termination
+kubectl get all -n exercises
 
-Deleting cluster dwk-cluster...done.
-Deleted [https://container.googleapis.com/v1/projects/dwk-gke-480015/zones/asia-south1-a/clusters/dwk-cluster].
+kubectl delete pvc -n exercises --all  
+kubectl delete namespace exercises 
 ```
+<!--GKE Cluster Cleanup (Full Reset)
+# Get credentials off cluster
+kubectl config delete-context $(kubectl config current-context)
+-->
+**Delete GKE cluster**
+```bash
+gcloud container clusters delete dwk-cluster \
+  --zone=asia-south1-a \
+  --quiet
+```
+<!--
+# Verify deletion
+gcloud container clusters list --project=dwk-gke-480015
+
+# Verification Commands
+# Check namespace empty
+kubectl get all -n exercises  # No resources
+
+# Check no lingering PVCs
+kubectl get pvc -n exercises  # No resources
+
+# Check cluster clean
+kubectl get nodes  # Context error = clean
 
 ---
 
 
-<!--
+
 check logs
 kubectl -n ${NAMESPACE} logs postgresql-db-1 -c postgresql-db
 kubectl -n ${NAMESPACE} logs postgresql-db-0 -c postgresql-db 
