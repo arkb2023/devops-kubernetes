@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: project
+
+resources:
+# Todo app
+- todo_app/manifests/deployment.yaml
+- todo_app/manifests/service.yaml
+
+# Todo backend + Postgres
+- todo_backend/manifests/deployment.yaml
+- todo_backend/manifests/service.yaml
+- todo_backend/manifests/postgresql-statefulset.yaml
+- todo_backend/manifests/postgresql-service.yaml
+- todo_backend/manifests/postgresql-configmap.yaml
+- todo_backend/manifests/postgres-db-secret.yaml
+
+# Cronjob
+- cronjob/cron_wiki_todo.yaml
+- configmaps/project-config.yaml
