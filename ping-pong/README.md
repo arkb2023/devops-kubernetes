@@ -1,14 +1,13 @@
-## Exercise 3.3. To the Gateway
+## Exercise 3.4 Rewritten routing
 
-Replace `Ingress` with Kubernetes `Gateway API` using `HTTPRoute` for path-based routing to `ping-pong` and `log-output` applications.
+Modifiy the ping-pong app and Gateway API configuration to rewrite the external URL path `/pingpong` to the application root path `/`. This eliminates the need for the app to handle cluster-level path prefixes.
 
 **Key Changes from Base**
-  - [`ping-pong/manifests/gateway.yaml`](./manifests/gateway.yaml) - Single HTTP listener port 80 with `log-ping-app-gateway` LoadBalancer
-  - [`ping-pong/manifests/ping-pong-route.yaml`](./manifests/ping-pong-route.yaml) - HTTPRoute `/pingpong` and `/pings` to `ping-pong-svc:3456`
-  - [`log_output/manifests/log-output-route.yaml`](../log_output/manifests/log-output-route.yaml) - HTTPRoute `/` to `log-output-svc:80`
+  - [`ping-pong/manifests/ping-pong-route.yaml`](./manifests/ping-pong-route.yaml) - Configured URLRewrite filter with `replacePrefixMatch: /` to rewrite `/pingpong` to `/` via Gateway API.
+  - [`ping-pong/pingpong.py`](./pingpong.py) - Modified the ping-pong app route handler to respond on the root path `/` instead of `/pingpong`.
 
 - Base versions used:  
-  - [Ping pong and Log output v3.2](https://github.com/arkb2023/devops-kubernetes/tree/3.2/ping-pong)  
+  - [Ping pong and Log output v3.3](https://github.com/arkb2023/devops-kubernetes/tree/3.3/ping-pong)  
   
 ***
 
@@ -151,16 +150,32 @@ postgresql/
   Name:         log-ping-app-gateway
   Namespace:    exercises
   Labels:       <none>
-  Annotations:  networking.gke.io/last-reconcile-time: 2025-12-03T16:43:04Z
+  Annotations:  networking.gke.io/addresses: /projects/929711803146/global/addresses/gkegw1-nv9e-exercises-log-ping-app-gateway-v71xu3da78az
+                networking.gke.io/backend-services:
+                  /projects/929711803146/global/backendServices/gkegw1-nv9e-exercises-gw-serve404-80-t9htdxlbxe5i, /projects/929711803146/global/backendServ...
+                networking.gke.io/firewalls: /projects/929711803146/global/firewalls/gkegw1-nv9e-l7-default-global
+                networking.gke.io/forwarding-rules: /projects/929711803146/global/forwardingRules/gkegw1-nv9e-exercises-log-ping-app-gateway-tz4nlc0g34o7
+                networking.gke.io/health-checks:
+                  /projects/929711803146/global/healthChecks/gkegw1-nv9e-exercises-gw-serve404-80-t9htdxlbxe5i, /projects/929711803146/global/healthChecks/g...
+                networking.gke.io/last-reconcile-time: 2025-12-04T03:00:56Z
+                networking.gke.io/lb-route-extensions:
+                networking.gke.io/lb-traffic-extensions:
+                networking.gke.io/ssl-certificates:
+                networking.gke.io/target-http-proxies:
+                  /projects/929711803146/global/targetHttpProxies/gkegw1-nv9e-exercises-log-ping-app-gateway-z33kukono48t
+                networking.gke.io/target-https-proxies:
+                networking.gke.io/url-maps: /projects/929711803146/global/urlMaps/gkegw1-nv9e-exercises-log-ping-app-gateway-z33kukono48t
+                networking.gke.io/wasm-plugin-versions:
+                networking.gke.io/wasm-plugins:
   API Version:  gateway.networking.k8s.io/v1
   Kind:         Gateway
   Metadata:
-    Creation Timestamp:  2025-12-03T16:42:59Z
+    Creation Timestamp:  2025-12-04T02:59:04Z
     Finalizers:
       gateway.finalizer.networking.gke.io
     Generation:        1
-    Resource Version:  1764780184308495017
-    UID:               c361f45e-2271-40cb-8a84-1a474bc676ff
+    Resource Version:  1764817256941455017
+    UID:               e1513a64-5e6a-42f7-bab0-5d7814a7ece6
   Spec:
     Gateway Class Name:  gke-l7-global-external-managed
     Listeners:
@@ -171,43 +186,77 @@ postgresql/
       Port:      80
       Protocol:  HTTP
   Status:
+    Addresses:
+      Type:   IPAddress
+      Value:  34.8.79.182
     Conditions:
-      Last Transition Time:  2025-12-03T16:43:04Z
+      Last Transition Time:  2025-12-04T02:59:21Z
       Message:               The OSS Gateway API has deprecated this condition, do not depend on it.
       Observed Generation:   1
       Reason:                Scheduled
       Status:                True
       Type:                  Scheduled
-      Last Transition Time:  2025-12-03T16:43:04Z
+      Last Transition Time:  2025-12-04T02:59:21Z
       Message:
       Observed Generation:   1
       Reason:                Accepted
       Status:                True
       Type:                  Accepted
+      Last Transition Time:  2025-12-04T03:00:56Z
+      Message:
+      Observed Generation:   1
+      Reason:                Programmed
+      Status:                True
+      Type:                  Programmed
+      Last Transition Time:  2025-12-04T03:00:56Z
+      Message:               The OSS Gateway API has altered the "Ready" condition semantics and reserved it for future use.  GKE Gateway will stop emitting it in a future update, use "Programmed" instead.
+      Observed Generation:   1
+      Reason:                Ready
+      Status:                True
+      Type:                  Ready
+      Last Transition Time:  2025-12-04T03:00:56Z
+      Message:
+      Observed Generation:   1
+      Reason:                Healthy
+      Status:                True
+      Type:                  networking.gke.io/GatewayHealthy
     Listeners:
       Attached Routes:  0
       Conditions:
-        Last Transition Time:  2025-12-03T16:43:04Z
+        Last Transition Time:  2025-12-04T02:59:21Z
         Message:
         Observed Generation:   1
         Reason:                ResolvedRefs
         Status:                True
         Type:                  ResolvedRefs
-        Last Transition Time:  2025-12-03T16:43:04Z
+        Last Transition Time:  2025-12-04T02:59:21Z
         Message:
         Observed Generation:   1
         Reason:                Accepted
         Status:                True
         Type:                  Accepted
+        Last Transition Time:  2025-12-04T03:00:56Z
+        Message:
+        Observed Generation:   1
+        Reason:                Programmed
+        Status:                True
+        Type:                  Programmed
+        Last Transition Time:  2025-12-04T03:00:56Z
+        Message:               The OSS Gateway API has altered the "Ready" condition semantics and reserved it for future use.  GKE Gateway will stop emitting it in a future update, use "Programmed" instead.
+        Observed Generation:   1
+        Reason:                Ready
+        Status:                True
+        Type:                  Ready
       Name:                    pingpong
       Supported Kinds:
         Group:  gateway.networking.k8s.io
         Kind:   HTTPRoute
   Events:
-    Type    Reason  Age   From                   Message
-    ----    ------  ----  ----                   -------
-    Normal  ADD     58s   sc-gateway-controller  exercises/log-ping-app-gateway
-    Normal  UPDATE  58s   sc-gateway-controller  exercises/log-ping-app-gateway
+    Type    Reason  Age                  From                   Message
+    ----    ------  ----                 ----                   -------
+    Normal  ADD     2m48s                sc-gateway-controller  exercises/log-ping-app-gateway
+    Normal  UPDATE  91s (x3 over 2m48s)  sc-gateway-controller  exercises/log-ping-app-gateway
+    Normal  SYNC    56s (x2 over 91s)    sc-gateway-controller  SYNC on exercises/log-ping-app-gateway was a success
   ```
 - **Deploy HTTP-Routes for `ping-pong` application**
   ```bash
@@ -217,7 +266,7 @@ postgresql/
   ```text
   httproute.gateway.networking.k8s.io/ping-pong-route created
   ```
-- **Verify route configuration**
+- **Verify the `/pingpong` HTTPRoute includes the `URLRewrite` filter with `replacePrefixMatch`**
   ```bash
   kubectl  -n exercises describe httproute ping-pong-route
   ```
@@ -230,10 +279,10 @@ postgresql/
   API Version:  gateway.networking.k8s.io/v1
   Kind:         HTTPRoute
   Metadata:
-    Creation Timestamp:  2025-12-03T16:46:04Z
+    Creation Timestamp:  2025-12-04T03:05:37Z
     Generation:          1
-    Resource Version:    1764780364460479020
-    UID:                 20c99bac-b68a-4d27-adbc-8bcd93fed3ec
+    Resource Version:    1764817537082863020
+    UID:                 09c8dbbc-0316-4c2f-b9a9-065a4fac6437
   Spec:
     Parent Refs:
       Group:  gateway.networking.k8s.io
@@ -246,18 +295,33 @@ postgresql/
         Name:    ping-pong-svc
         Port:    3456
         Weight:  1
+      Filters:
+        Type:  URLRewrite
+        URL Rewrite:
+          Path:
+            Replace Prefix Match:  /
+            Type:                  ReplacePrefixMatch
       Matches:
         Path:
           Type:   PathPrefix
           Value:  /pingpong
+      Backend Refs:
+        Group:
+        Kind:    Service
+        Name:    ping-pong-svc
+        Port:    3456
+        Weight:  1
+      Matches:
         Path:
           Type:   PathPrefix
           Value:  /pings
   Events:
     Type    Reason  Age   From                   Message
     ----    ------  ----  ----                   -------
-    Normal  ADD     69s   sc-gateway-controller  exercises/ping-pong-route
+    Normal  ADD     15s   sc-gateway-controller  exercises/ping-pong-route
   ```
+  > This output confirms that the HTTPRoute for the ping-pong app includes a URLRewrite filter configured to replace the prefix /pingpong with /, enabling the Gateway API rewrite functionality.
+
 - **Deploy HTTP-Routes for `log-output` application**
   ```bash
   kubectl apply -n exercises -f log_output/manifests/log-output-route.yaml  
@@ -279,10 +343,10 @@ postgresql/
   API Version:  gateway.networking.k8s.io/v1
   Kind:         HTTPRoute
   Metadata:
-    Creation Timestamp:  2025-12-03T16:46:18Z
+    Creation Timestamp:  2025-12-04T03:07:34Z
     Generation:          1
-    Resource Version:    1764780378928639013
-    UID:                 ab25f5a6-001b-45f5-8d83-e1ebe073fc9d
+    Resource Version:    1764817654625023013
+    UID:                 33b0a926-e3b9-43fc-abe4-01b606a5ca7c
   Spec:
     Parent Refs:
       Group:  gateway.networking.k8s.io
@@ -293,7 +357,7 @@ postgresql/
         Group:
         Kind:    Service
         Name:    log-output-svc
-        Port:    8080
+        Port:    80
         Weight:  1
       Matches:
         Path:
@@ -302,7 +366,7 @@ postgresql/
   Events:
     Type    Reason  Age   From                   Message
     ----    ------  ----  ----                   -------
-    Normal  ADD     29s   sc-gateway-controller  exercises/log-output-route
+    Normal  ADD     8s    sc-gateway-controller  exercises/log-output-route
   ```
 - **Verify all 3 pods Running**
   ```bash
@@ -311,10 +375,10 @@ postgresql/
   *Output*
   ```text
   NAME                              READY   STATUS    RESTARTS   AGE
-  log-output-dep-65d4dd9b55-ldbgt   1/1     Running   0          46s
-  ping-pong-dep-7f68b8df89-sm4p2    1/1     Running   0          20m
-  postgresql-db-0                   1/1     Running   0          23m
-  postgresql-db-1                   1/1     Running   0          23m
+  log-output-dep-86b9b9dd59-sm7rf   1/1     Running   0          13m
+  ping-pong-dep-86dbc96667-d7457    1/1     Running   0          14m
+  postgresql-db-0                   1/1     Running   0          16m
+  postgresql-db-1                   1/1     Running   0          15m
   ```
 - **Wait for GKE Gateway controller to fully set up the external load balancer**
   ```bash
@@ -323,7 +387,7 @@ postgresql/
   **Output**
   ```text
   NAME                   CLASS                            ADDRESS       PROGRAMMED   AGE
-  log-ping-app-gateway   gke-l7-global-external-managed   34.8.36.183   True         14m
+  log-ping-app-gateway   gke-l7-global-external-managed   34.8.79.182   True         82s
   ```
   > Wait for `ADDRESS` to populate and `PROGRAMMED` to switch to True
 - **Verify overall health of the configured entities**
@@ -332,32 +396,31 @@ postgresql/
   ```
   ```text
   NAME                                  READY   STATUS    RESTARTS   AGE
-  pod/log-output-dep-65d4dd9b55-ldbgt   1/1     Running   0          13m
-  pod/ping-pong-dep-7f68b8df89-sm4p2    1/1     Running   0          33m
-  pod/postgresql-db-0                   1/1     Running   0          36m
-  pod/postgresql-db-1                   1/1     Running   0          35m
+  pod/log-output-dep-86b9b9dd59-sm7rf   1/1     Running   0          19m
+  pod/ping-pong-dep-86dbc96667-d7457    1/1     Running   0          20m
+  pod/postgresql-db-0                   1/1     Running   0          22m
+  pod/postgresql-db-1                   1/1     Running   0          21m
 
   NAME                        TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
-  service/log-output-svc      ClusterIP   34.118.238.160   <none>        80/TCP     32m
-  service/ping-pong-svc       ClusterIP   34.118.233.57    <none>        3456/TCP   33m
-  service/postgresql-db-svc   ClusterIP   None             <none>        5432/TCP   36m
+  service/log-output-svc      ClusterIP   34.118.237.247   <none>        80/TCP     19m
+  service/ping-pong-svc       ClusterIP   34.118.235.8     <none>        3456/TCP   20m
+  service/postgresql-db-svc   ClusterIP   None             <none>        5432/TCP   22m
 
   NAME                             READY   UP-TO-DATE   AVAILABLE   AGE
-  deployment.apps/log-output-dep   1/1     1            1           32m
-  deployment.apps/ping-pong-dep    1/1     1            1           33m
+  deployment.apps/log-output-dep   1/1     1            1           19m
+  deployment.apps/ping-pong-dep    1/1     1            1           20m
 
   NAME                                        DESIRED   CURRENT   READY   AGE
-  replicaset.apps/log-output-dep-65d4dd9b55   1         1         1       13m
-  replicaset.apps/log-output-dep-86b9b9dd59   0         0         0       32m
-  replicaset.apps/ping-pong-dep-7f68b8df89    1         1         1       33m
+  replicaset.apps/log-output-dep-86b9b9dd59   1         1         1       19m
+  replicaset.apps/ping-pong-dep-86dbc96667    1         1         1       20m
 
   NAME                             READY   AGE
-  statefulset.apps/postgresql-db   2/2     36m
+  statefulset.apps/postgresql-db   2/2     22m
   ```
 
 ### 4. Validate
 
-  Use the Gateway Address (http://34.8.36.183/) to access the applications: 
+  Use the Gateway Address (http://34.8.79.182/) to access the applications: 
 - **Test Log Output App response on `/` HTTP endpoint:**  
 
   - Application returns the expected response  
@@ -365,13 +428,13 @@ postgresql/
 
 - **Test Ping Pong App response on `/pings` HTTP endpoint:**  
 
-  - Application returns `0` *(consistent with previous log-output app response as expected)*  
+  - Application returns the expected response    
     ![caption](../log_output/images/02-ping-pong-pings-response.png)
       
 
 - **Test Ping Pong App response on `/pingpong` HTTP endpoint:**  
 
-  - Application returns `N+1` value as expected  
+  - Application returns the expected response    
     ![caption](../log_output/images/03-ping-pong-pingpong-response.png)  
 
 ### 6. **Cleanup**
@@ -386,7 +449,7 @@ kubectl delete -n exercises \
   deployment ping-pong-dep log-output-dep
   
 kubectl delete -n exercises \
-  statefulset postgresql-db \
+  statefulset postgresql-db
 
 kubectl delete -n exercises \
   service ping-pong-svc log-output-svc postgresql-db-svc

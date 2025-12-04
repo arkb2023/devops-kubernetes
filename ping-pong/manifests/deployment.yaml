@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: ping-pong
-          image: arkb2023/ping-pong:3.2.5
+          image: arkb2023/ping-pong:3.4.1
           envFrom:
           - configMapRef:
               name: postgres-db-config

@@ -92,38 +92,40 @@ async def get_pong_count():
         #return {"pong": value}
         return PlainTextResponse(f"Ping / Pongs: {value}") 
 
-
-@app.get("/pingpong")
+# upto exercise 3.3
+# @app.get("/pingpong")
+# changed for exercise 3.4
+@app.get("/")
 async def pingpong():
-    logger.debug("/pingpong - Starting")
+    logger.debug("Entered pingpong route handler")
     
     async with AsyncSessionLocal() as session:
         # READ
         result = await session.execute(select(PingPongCounter.value).where(PingPongCounter.id == 1))
         old_value = result.scalar()
-        logger.debug(f"/pingpong - old: {old_value}")
+        logger.debug(f"pingpong route handler- old: {old_value}")
         
         # UPDATE
-        logger.debug(f"/pingpong - {old_value} → {old_value + 1}")
+        logger.debug(f"pingpong route handler - {old_value} → {old_value + 1}")
         await session.execute(
             update(PingPongCounter)
             .where(PingPongCounter.id == 1)
             .values(value=PingPongCounter.value + 1)
         )
         await session.commit()
-        logger.debug("/pingpong - committed")
+        logger.debug("pingpong route handler - committed")
         
         # REFETCH Critical fix
         result = await session.execute(select(PingPongCounter.value).where(PingPongCounter.id == 1))
         new_value = result.scalar()
-        logger.debug(f"/pingpong - new: {new_value}")
+        logger.debug(f"pingpong route handler - new: {new_value}")
         
-        logger.debug(f"/pingpong - returning {new_value}")
+        logger.debug(f"Returning pingpong route handler - pong: {new_value}")
         #return {"pong": new_value}  # JSON response
         return PlainTextResponse(f"pong: {new_value}")
 
 
-@app.get("/")
-async def root():
-    logger.debug("ping-pong: root endpoint")
-    return {"message": "Ping-pong API v2.7.4 running"}
+# @app.get("/")
+# async def root():
+#     logger.debug("ping-pong: root endpoint")
+#     return {"message": "Ping-pong API v2.7.4 running"}

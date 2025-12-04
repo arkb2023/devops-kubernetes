@@ -7,10 +7,26 @@ spec:
   parentRefs:
   - name: log-ping-app-gateway
   rules:
+
+  # /pingpong route rewritten to `/`
+  # --------------------------------
   - matches:
     - path:
         type: PathPrefix
         value: /pingpong
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
+    backendRefs:
+    - name: ping-pong-svc
+      port: 3456
+  
+  # /pings route
+  # ------------
+  - matches:      
     - path:
         type: PathPrefix
         value: /pings
