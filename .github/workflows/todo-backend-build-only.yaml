@@ -1,4 +1,4 @@
-name: Todo App - Build & Publish TEST
+name: Todo Backend App - Build & Publish TEST
 on:
   workflow_dispatch:  # Manual trigger
 env:
@@ -23,8 +23,8 @@ jobs:
     
     - name: Build & Push Todo App
       run: |
-        IMAGE_TAG="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/todo-app:${{ github.sha }}"
-        cd the_project/todo_app/
+        IMAGE_TAG="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/todo-backend:${{ github.sha }}"
+        cd the_project/todo_backend/
         docker build -t $IMAGE_TAG .
         docker push $IMAGE_TAG
-        echo "Todo App pushed: $IMAGE_TAG"
+        echo "Todo Backend App pushed: $IMAGE_TAG"
