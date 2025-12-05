@@ -66,6 +66,49 @@ jobs:
     needs: [build-todo-app, build-todo-backend]  # Wait for builds
     runs-on: ubuntu-latest
     steps:
-    # ... auth + GKE credentials ...
-    - name: Deploy Both Apps
-      run: kubectl apply -k environments/project-gke
+    - uses: actions/checkout@v4  # Needed for kustomize files
+    
+    - id: auth
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GKE_SA_KEY }}
+    
+    - uses: google-github-actions/setup-gcloud@v2
+    
+    - name: Get GKE credentials  # ← CRITICAL: MISSING
+      uses: google-github-actions/get-gke-credentials@v2
+      with:
+        cluster_name: ${{ env.GKE_CLUSTER }}
+        location: ${{ env.GKE_ZONE }}
+        project_id: ${{ env.PROJECT_ID }}
+    
+    - name: Install yq  # ← FIXED: Reliable install
+      run: |
+        wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq
+        chmod +x /usr/local/bin/yq
+    
+    - name: Update Kustomize Images & Deploy
+      env:
+        REGISTRY: ${{ env.REGISTRY }}
+        PROJECT_ID: ${{ env.PROJECT_ID }}
+        REPOSITORY: ${{ env.REPOSITORY }}
+        GITHUB_SHA: ${{ github.sha }}
+      run: |
+        # Generate FULL image tags
+        TODO_APP_IMAGE="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/todo-app:${GITHUB_SHA}"
+        TODO_BACKEND_IMAGE="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/todo-backend:${GITHUB_SHA}"
+
+        echo "Deploying:"
+        echo "  Todo App: $TODO_APP_IMAGE"
+        echo "  Todo Backend: $TODO_BACKEND_IMAGE"
+
+        # Multiple --image flags
+        kustomize build environments/project-gke \
+          --enable-helm=false \
+          --image "todo-app=${TODO_APP_IMAGE}" \
+          --image "todo-backend=${TODO_BACKEND_IMAGE}" | \
+        kubectl apply -f -
+
+        # Verify deployment
+        kubectl rollout status deployment todo-app-dep todo-backend-dep -n project --timeout=300s || true
+        kubectl get pods,svc,gateway -n project
