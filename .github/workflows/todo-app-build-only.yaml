@@ -1,0 +1,30 @@
+name: Todo App - Build & Publish TEST
+on:
+  workflow_dispatch:  # Manual trigger
+env:
+  PROJECT_ID: dwk-gke-480015
+  REGISTRY: asia-south1-docker.pkg.dev
+  REPOSITORY: dwk-gke-repository
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - id: auth
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GKE_SA_KEY }}
+    
+    - uses: google-github-actions/setup-gcloud@v2
+    
+    - name: Configure Docker
+      run: gcloud auth configure-docker ${{ env.REGISTRY }}
+    
+    - name: Build & Push Todo App
+      run: |
+        IMAGE_TAG="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/todo-app:${{ github.sha }}"
+        cd the_project/todo_app/
+        docker build -t $IMAGE_TAG .
+        docker push $IMAGE_TAG
+        echo "✅ Todo App pushed: $IMAGE_TAG"
