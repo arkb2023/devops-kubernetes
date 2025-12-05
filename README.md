@@ -35,3 +35,4 @@
 - [3.2.](https://github.com/arkb2023/devops-kubernetes/tree/3.2/ping-pong)  
 - [3.3.](https://github.com/arkb2023/devops-kubernetes/tree/3.3/ping-pong)  
 - [3.4.](https://github.com/arkb2023/devops-kubernetes/tree/3.4/ping-pong)  
+- [3.5.](https://github.com/arkb2023/devops-kubernetes/tree/3.5/the_project)  
