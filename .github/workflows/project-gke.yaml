@@ -1,4 +1,4 @@
-name: Both Todo Apps - Build & Publish
+name: Todo Apps - Build, Publish & Deploy
 on:
   workflow_dispatch:  # Manual test
 env:
