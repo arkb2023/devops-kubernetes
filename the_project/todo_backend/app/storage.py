@@ -1,4 +1,5 @@
 import os
+import asyncio
 import logging
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
@@ -52,9 +53,22 @@ AsyncSessionLocal = sessionmaker(
 )
 async def init_db():
     """Create tables on startup."""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("storage.py: Database tables created")
+    # async with engine.begin() as conn:
+    #     await conn.run_sync(Base.metadata.create_all)
+    # logger.info("storage.py: Database tables created")
+
+    max_retries = 30
+    for attempt in range(max_retries):
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            logger.info("Database ready!")
+            break
+        except Exception as e:
+            logger.warning(f"Database Table Creation: Attempt {attempt+1}/30 failed: {e}")
+            if attempt == max_retries - 1:
+                raise
+            await asyncio.sleep(2)
 
 async def get_db_session() -> AsyncSession:
     async with AsyncSessionLocal() as session:

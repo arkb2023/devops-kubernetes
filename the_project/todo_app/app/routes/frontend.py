@@ -11,13 +11,13 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FORMAT = os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 logging.basicConfig(level=LOG_LEVEL, format=LOG_FORMAT)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("todo-app")
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
-backend_url = os.getenv("TODO_BACKEND_URL", "http://127.0.0.1:8000")
-logger.info(f"frontend.py module loaded: LOG_LEVEL={LOG_LEVEL}, LOG_FORMAT={LOG_FORMAT}, BACKEND_URL={backend_url}")
-logger.info(f"frontend.py: backend_url set to {backend_url}")
+backend_api = os.getenv("TODO_BACKEND_API", "/todos/")
+logger.info(f"frontend.py module loaded: LOG_LEVEL={LOG_LEVEL}, LOG_FORMAT={LOG_FORMAT}, backend_api={backend_api}")
+
 async def lifespan(app: FastAPI):
     """Fetch image on startup if cache is expired, initialize cache with metadata support."""
     global cache
@@ -81,7 +81,7 @@ async def main_page(request: Request):
         "image_access_count": cache.image_access_count,
         "last_access": last_access_str,
         "grace_status": grace_status,
-        "backend_url": backend_url,
+        "backend_api": backend_api,
     })
 
 @router.get("/image")

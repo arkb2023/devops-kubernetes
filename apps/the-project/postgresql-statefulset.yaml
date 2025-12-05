@@ -36,7 +36,10 @@ spec:
         name: postgresql-db-disk
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: local-path
+        # local
+        # storageClassName: local-path
+        # GKE default
+        # storageClassName: standard-rwo
         resources:
           requests:
             storage: 100Mi

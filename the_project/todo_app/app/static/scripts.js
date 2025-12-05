@@ -5,7 +5,7 @@
 async function loadTodos() {
   // TODO: Fetch todo list from todo-backend and update #todoList
   // const res = await fetch('http://todo-backend-svc:8000/todos');  // Backend endpoint
-  const res = await fetch(`${backendURL}/todos`);  // Backend endpoint
+  const res = await fetch(`${backend_api}`);  // Backend endpoint
             
 
   const todos = await res.json();
@@ -28,7 +28,7 @@ async function createTodo() {
   }
   
   //await fetch('http://todo-backend-svc:8000/todos', {
-  await fetch(`${backendURL}/todos`, {
+  await fetch(`${backend_api}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text: input.value }),

@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: project-config-env
+  namespace: project
+data:
+  LOG_LEVEL: "DEBUG"
+  LOG_FORMAT: "ENV: %(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  IMG_URL: "https://picsum.photos/500"
+  CACHE_DIR: "/usr/src/app/files/cache"
+  THE_PROJECT_ROOT: "/app"
+  
+  # GKE setup
+  # TODO_APP_PORT: "1234"
+  # TODO_BACKEND_PORT: "4567"
+  # TODO_BACKEND_HOST: "todo-backend-svc"
+  # TODO_APP_HOST: "todo-app-svc"
+  # TODO_BACKEND_URL: "http://todo-backend-svc:4567"
+  # TODO_APP_URL: "http://todo-app-svc:1234"
+  
+  # Local setup
+  # TODO_APP_PORT: "3000"
+  # TODO_BACKEND_PORT: "3000"
+  # TODO_BACKEND_HOST: "127.0.0.1"
+  # TODO_APP_HOST: "127.0.0.1"
+  #TODO_BACKEND_URL: "http://127.0.0.1:8081"
+  TODO_BACKEND_API: "/todos/"
+  # TODO_APP_URL: "http://127.0.0.1:8080"
+
+  

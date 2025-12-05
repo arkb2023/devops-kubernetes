@@ -19,7 +19,7 @@ spec:
             claimName: local-pv-claim
       containers:
         - name: todo-app-container
-          image: arkb2023/todo-app:2.6.1  # image name/tag
+          image: arkb2023/todo-app:3.5.1  # image name/tag
           envFrom:
           - configMapRef:
               name: project-config-env

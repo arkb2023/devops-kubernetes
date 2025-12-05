@@ -4,18 +4,22 @@ kind: Kustomization
 namespace: project
 
 resources:
-# Todo app
-- todo_app/manifests/deployment.yaml
-- todo_app/manifests/service.yaml
+# Shared ConfigMaps
+- project-configmap.yaml
 
-# Todo backend + Postgres
-- todo_backend/manifests/deployment.yaml
-- todo_backend/manifests/service.yaml
-- todo_backend/manifests/postgresql-statefulset.yaml
-- todo_backend/manifests/postgresql-service.yaml
-- todo_backend/manifests/postgresql-configmap.yaml
-- todo_backend/manifests/postgres-db-secret.yaml
+# PostgreSQL
+- postgres-db-secret.yaml
+- postgresql-configmap.yaml
+- postgresql-service.yaml
+- postgresql-statefulset.yaml
 
-# Cronjob
-- cronjob/cron_wiki_todo.yaml
-- configmaps/project-config.yaml
+# Todo App
+- todo-app-deployment.yaml
+- todo-app-service.yaml
+
+# Todo Backend
+- todo-backend-deployment.yaml
+- todo-backend-service.yaml
+
+# CronJob for todo/wiki tasks
+- cron_wiki_todo.yaml  
