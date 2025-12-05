@@ -15,12 +15,12 @@ resources:
 - todo-app-route.yaml
 - todo-backend-route.yaml
 
-# Image overrides (runtime injection)
-images:
-- name: todo-app
-  newName: asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-app
-  newTag: "latest"  # Overridden by GitHub Actions
+# # Image overrides (runtime injection)
+# images:
+# - name: todo-app
+#   newName: asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-app
+#   newTag: "latest"  # Overridden by GitHub Actions
 
-- name: todo-backend
-  newName: asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-backend  
-  newTag: "latest"
+# - name: todo-backend
+#   newName: asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-backend  
+#   newTag: "latest"

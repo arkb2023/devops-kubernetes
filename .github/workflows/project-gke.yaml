@@ -84,11 +84,6 @@ jobs:
         location: ${{ env.GKE_ZONE }}
         project_id: ${{ env.PROJECT_ID }}
     
-    - name: Install yq  # ← FIXED: Reliable install
-      run: |
-        wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq
-        chmod +x /usr/local/bin/yq
-    
     - name: Update Kustomize Images & Deploy
       env:
         REGISTRY: ${{ env.REGISTRY }}
