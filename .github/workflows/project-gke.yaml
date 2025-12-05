@@ -2,6 +2,8 @@ name: Todo Apps - Build, Publish & Deploy
 on:
   workflow_dispatch:  # Manual test
 env:
+  GKE_CLUSTER: dwk-cluster
+  GKE_ZONE: asia-south1-a 
   PROJECT_ID: dwk-gke-480015
   REGISTRY: asia-south1-docker.pkg.dev
   REPOSITORY: dwk-gke-repository
