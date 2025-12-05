@@ -1,7 +1,6 @@
 node_modules/
 chat.db
 *notes*
-*env*
 *dothis*
 *submission*
 *.log
@@ -13,6 +12,7 @@ chat.db
 .idea/
 dist/
 build/
+*env
 .env
 .env.local
 .env.*.local
@@ -34,7 +34,7 @@ public/
 *.jks
 *.pfx
 secrets/
-*env*
+
 *help*
 *pycache*
 *.pyc*

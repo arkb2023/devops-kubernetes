@@ -1,0 +1,15 @@
+# gateway.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: log-ping-app-gateway
+  namespace: exercises
+spec:
+  gatewayClassName: gke-l7-global-external-managed
+  listeners:
+  - name: pingpong
+    protocol: HTTP
+    port: 80
+    allowedRoutes:
+      namespaces:
+        from: Same  # Routes in same namespace only

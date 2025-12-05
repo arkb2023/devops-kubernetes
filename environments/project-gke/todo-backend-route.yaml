@@ -1,0 +1,19 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: todo-backend-route
+  namespace: project  
+spec:
+  parentRefs:
+  - name: project-gateway
+  rules:
+
+  # /todos route
+  # ------------
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /todos
+    backendRefs:
+    - name: todo-backend-svc
+      port: 4567
