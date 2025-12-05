@@ -1,0 +1,64 @@
+name: Both Todo Apps - Build & Publish
+on:
+  workflow_dispatch:  # Manual test
+env:
+  PROJECT_ID: dwk-gke-480015
+  REGISTRY: asia-south1-docker.pkg.dev
+  REPOSITORY: dwk-gke-repository
+jobs:
+  build-todo-app:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - id: auth
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GKE_SA_KEY }}
+    
+    - uses: google-github-actions/setup-gcloud@v2
+    
+    - name: Configure Docker
+      run: gcloud auth configure-docker ${{ env.REGISTRY }}
+    
+    - name: BUILD Todo App
+      run: |
+        TODO_APP_IMAGE_TAG="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/todo-app:${{ github.sha }}"
+        echo "Building: $TODO_APP_IMAGE_TAG"
+        echo "TODO_APP_IMAGE_TAG=$TODO_APP_IMAGE_TAG" >> $GITHUB_ENV
+        cd the_project/todo_app/
+        docker build -t ${TODO_APP_IMAGE_TAG} .
+    
+    - name: PUBLISH Todo App
+      run: |
+        echo "Publishing: $TODO_APP_IMAGE_TAG"
+        docker push "$TODO_APP_IMAGE_TAG"
+
+  build-todo-backend:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - id: auth
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GKE_SA_KEY }}
+    
+    - uses: google-github-actions/setup-gcloud@v2
+    
+    - name: Configure Docker
+      run: gcloud auth configure-docker ${{ env.REGISTRY }}
+    
+    - name: BUILD Todo Backend
+      run: |
+        TODO_BACKEND_APP_IMAGE_TAG="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/todo-backend:${{ github.sha }}"
+        echo "Building: $TODO_BACKEND_APP_IMAGE_TAG"
+        echo "TODO_BACKEND_APP_IMAGE_TAG=$TODO_BACKEND_APP_IMAGE_TAG" >> $GITHUB_ENV      
+        cd the_project/todo_backend/
+        docker build -t "$TODO_BACKEND_APP_IMAGE_TAG" .
+
+    
+    - name: PUBLISH Todo Backend
+      run: |
+        echo "Publishing: $TODO_BACKEND_APP_IMAGE_TAG"
+        docker push "$TODO_BACKEND_APP_IMAGE_TAG"
