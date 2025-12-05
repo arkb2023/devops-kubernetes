@@ -96,19 +96,24 @@ jobs:
         REPOSITORY: ${{ env.REPOSITORY }}
         GITHUB_SHA: ${{ github.sha }}
       run: |
-        # Generate FULL image tags
-        TODO_APP_IMAGE="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/todo-app:${GITHUB_SHA}"
-        TODO_BACKEND_IMAGE="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/todo-backend:${GITHUB_SHA}"
+        # # Generate FULL image tags
+        # TODO_APP_IMAGE="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/todo-app:${GITHUB_SHA}"
+        # TODO_BACKEND_IMAGE="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/todo-backend:${GITHUB_SHA}"
+        
+        # Extract repo:tag (Kustomize format)
+        TODO_APP_IMAGE="todo-app:${GITHUB_SHA}"
+        TODO_BACKEND_IMAGE="todo-backend:${GITHUB_SHA}"
 
         echo "Deploying:"
         echo "  Todo App: $TODO_APP_IMAGE"
         echo "  Todo Backend: $TODO_BACKEND_IMAGE"
 
         # Multiple --image flags
+        # (name=repo:tag format)
         kustomize build environments/project-gke \
           --enable-helm=false \
-          --image "todo-app=${TODO_APP_IMAGE}" \
-          --image "todo-backend=${TODO_BACKEND_IMAGE}" | \
+          --image "${TODO_APP_IMAGE}" \
+          --image "${TODO_BACKEND_IMAGE}" | \
         kubectl apply -f -
 
         # Verify deployment
