@@ -96,25 +96,20 @@ jobs:
         REPOSITORY: ${{ env.REPOSITORY }}
         GITHUB_SHA: ${{ github.sha }}
       run: |
-        # # Generate FULL image tags
-        # TODO_APP_IMAGE="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/todo-app:${GITHUB_SHA}"
-        # TODO_BACKEND_IMAGE="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/todo-backend:${GITHUB_SHA}"
+        # Generate FULL image tags
+        TODO_APP_IMAGE="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/todo-app:${GITHUB_SHA}"
+        TODO_BACKEND_IMAGE="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/todo-backend:${GITHUB_SHA}"
         
-        # Extract repo:tag (Kustomize format)
-        TODO_APP_IMAGE="todo-app:${GITHUB_SHA}"
-        TODO_BACKEND_IMAGE="todo-backend:${GITHUB_SHA}"
-
         echo "Deploying:"
         echo "  Todo App: $TODO_APP_IMAGE"
         echo "  Todo Backend: $TODO_BACKEND_IMAGE"
 
-        # Multiple --image flags
-        # (name=repo:tag format)
-        kustomize build environments/project-gke \
-          --enable-helm=false \
-          --image "${TODO_APP_IMAGE}" \
-          --image "${TODO_BACKEND_IMAGE}" | \
-        kubectl apply -f -
+        # Kustomize edit (works on all versions)
+        kustomize edit set image todo-app-container="$TODO_APP_IMAGE"
+        kustomize edit set image todo-backend-container="$TODO_BACKEND_IMAGE"
+  
+        # Build and deploy
+        kustomize build environments/project-gke | kubectl apply -f -
 
         # Verify deployment
         kubectl rollout status deployment todo-app-dep todo-backend-dep -n project --timeout=300s || true
