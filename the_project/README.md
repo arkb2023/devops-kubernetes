@@ -1,16 +1,12 @@
-## Exercise 3.6. The project, step 15
+## Exercise 3.7. The project, step 16
 
-**Objective**: Setup automatic deployment for the project - Integrate GitHub Actions Workflow, Google Artifact Registory and Google Kubernetes Engine.
+**Objective**: Improve the deployment so that each branch creates a separate environment. The main branch should still be deployed in the namespace project.
 
 **Key Changes from Base**  
-  - [`dwk-gke-repository`](https://console.cloud.google.com/artifacts/docker/dwk-gke-480015/asia-south1/dwk-gke-repository?hl=en&project=dwk-gke-480015) - Google Artifact Registry for Docker images  
-  - Google Service Account `github-actions` with IAM roles  
-  - [.github/workflows/project-gke.yaml](../.github/workflows/project-gke.yaml) - GitHub Action workflow to Build, Push SHA images, Kustomize transform and GKE deploy
-  - [environments/project-gke/kustomization.yaml](../environments/project-gke/kustomization.yaml) - Updated for Registry prefix overlay
-***
+  - [.github/workflows/project-gke.yaml](../.github/workflows/project-gke.yaml) - Enhanced for Multi-Branch GitHub Actions Workflow with dynamic namespace generation
 
 **Base Application Version**
-- [The project v3.5](https://github.com/arkb2023/devops-kubernetes/tree/3.5/the_project/)
+- [The project v3.6](https://github.com/arkb2023/devops-kubernetes/tree/3.6/the_project/)
 
 ### 1. **Directory and File Structure**
 <pre>
@@ -20,7 +16,7 @@
       └── project-gke.yaml
 
   # kustomization: Common Project resource yamls 
-    apps/the-project/
+  apps/the-project/
   ├── cron_wiki_todo.yaml
   ├── kustomization.yaml
   ├── postgres-db-secret.yaml
@@ -98,203 +94,159 @@
   ```bash
   gcloud container clusters get-credentials dwk-cluster --zone=asia-south1-a
   ```
+- Google service Account `github-actions`wtih required IAM roles  
+- Google Artifact Registry - repository `dwk-gke-repository` (asia-south1)  
+- GitHub Actions authentication for GKE + Artifact Registry via Repository Secrets  
 
-### 3. Google Service Account
-  - Created service Account `github-actions`  
-    ![Service Account Creation](./images/gcr/12-service-account.png)  
-
-  - Assign IAM roles  
-    ![IAM Roles Assigned](./images/gcr/13-service-account-roles.png)  
-    > Shows assisgned IAM roles  
-    >   - Kubernetes Engine Service Agent  
-    >   - Storage Admin  
-    >   - Artifact Registry Administrator  
-    >   - Artifact Registry Create-on-Push Repository Administrator  
-    >   - Artifact Registry Reader  
-
-### 4. Google Artifact Registry
-  - Created repository `dwk-gke-repository` (asia-south1)  
-    ![Artifact Registry Repository](./images/gcr/10-gcr.png)  
-
-### 5. GitHub Actions Repository secrets
-  - GitHub Actions authentication for GKE + Artifact Registry via Repository Secrets:  
-    ![caption](./images/github/06-github-secrets-variables.png)
-
-### 6. Setup GitHub Actions pipeline
-  Automatic CI/CD triggered with relevant changes:
-  - Trigger on push to main branch
-  - Relavant environment variables
-      ```yaml
-      env:
-        GKE_CLUSTER: dwk-cluster
-        GKE_ZONE: asia-south1-a 
-        PROJECT_ID: dwk-gke-480015
-        REGISTRY: asia-south1-docker.pkg.dev
-        REPOSITORY: dwk-gke-repository
-      ```
-  - Three jobs:
-    - `build-todo-app`: Docker build, Push `todo-app:${GITHUB_SHA}` to Google Artifact Registry
-    - `build-todo-backend`: Docker build, Push `todo-backend:${GITHUB_SHA}` to Google Artifact Registry
-    - `deploy`: Depends on `build-todo-app` and `build-todo-backend`, kustomize SHA transform, GKE deploy
-  - Workflow file: [`.github/workflows/project-gke.yaml`](../.github/workflows/project-gke.yaml)
-
-### 7. End-to-end Validation
-  - Trigger Pipeline
+### 3. Multi-Branch GitOps Validation
+  - Trigger Pipeline in `main` branch
     ```bash
+    git checkout main
     git add .
-    git commit -m "Test: Project - Build, Publish & Deploy"
+    git commit -m "[Exercise: 3.7. The project, step 16] Test01- Build, Publish & Deploy"
     git push origin main
     ```
-  - Workflow Success: [Run #19986721622](https://github.com/arkb2023/devops-kubernetes/actions/runs/19986721622) and monitor progress
-    ![Workflow Success](./images/github/01-workflow-success-highlevel.png)  
-    
-  - Build Jobs - `build-todo-app` and `build-todo-backed`:  
-    ![Todo App Build](./images/github/02-todo-app-build-job-success.png)  
-    ![Todo Backend Build](./images/github/03-todo-backend-build-job-success.png)  
-
-  - SHA Deploy:  
-    ![Deploy SHA Images](./images/github/04-deploy-job-success.png)  
-    ![caption](./images/github/05-deploy-job-details.png)  
-    ![caption](./images/github/07-deploy-job-details2.png)  
-    ![caption](./images/github/08-deploy-job-details3.png)  
+  - Trigger Pipeline in `feature/ui-v1` branch
+    ```bash
+    git checkout feature/ui-v1
+    git add .
+    git commit -m "[Exercise: 3.7. The project, step 16] Test04- Build, Publish & Deploy"
+    git push origin main
+    ```
+  - Pipelines triggered for both `main` [Run #19991435542](https://github.com/arkb2023/devops-kubernetes/actions/runs/19991435542) and `feature/ui-v1` [Run #19992143321](https://github.com/arkb2023/devops-kubernetes/actions/runs/19992143321) branch  
+    ![`feature/ui-v1 branch workflow success`](./images/github/01-main-and-feature-branch-workflows-success.png)  
   
-  - Artifact Registry SHA Images  
-    - SHA-tagged images created on GitHub Actions push:  
-      ![SHA Images](./images/gcr/11-repo-details-showing-todo-app-and-backend-image-folders.png)
-
-    - Todo App Image  
-      ![Todo App SHA](./images/gcr/02-todo-app-gcr-image.png)  
-
-    - Todo Backend App Image  
-      ![Todo Backend SHA](./images/gcr/01-todo-backend-image.png)  
+  - Build Jobs - `main` and `feature/ui-v1` branch  
+    ![`Build jobs`](./images/github/02-main-feature-branch-workflow-stages.png)  
   
-  - Validate deployment through gcloud cli  
-    - Verify PVC status  
+  - Validate Namespace Isolation  
       ```bash
-      kubectl -n project get pvc
+      kubectl get ns | egrep "project|feature-ui-v1|NAME"
+      ```
+      *Output*  
+      ```text
+      NAME                          STATUS   AGE
+      feature-ui-v1                 Active   69m
+      project                       Active   86m
+      ```
+
+  - Validate Gateway Separation - Two unique external IPs
+      ```bash
+      kubectl get gateway -A | egrep "project|feature-ui-v1|NAMESPACE"
+      ```
+      *Output*  
+      ```text
+      NAMESPACE       NAME              CLASS                            ADDRESS          PROGRAMMED   AGE
+      feature-ui-v1   project-gateway   gke-l7-global-external-managed   136.110.197.45   True         25m
+      project         project-gateway   gke-l7-global-external-managed   35.244.202.196   True         87m
+      ```
+  - Validate Resource Isolation Per Namespace
+
+    - `project` Namespace
+        ```bash
+        kubectl get all -n project -o wide
+        ```
+        *Output*  
+        ```text
+        NAME                                     READY   STATUS      RESTARTS   AGE   IP            NODE                                         NOMINATED NODE   READINESS GATES
+        pod/postgresql-db-0                      1/1     Running     0          88m   10.108.2.8    gke-dwk-cluster-default-pool-f81a64d1-02f0   <none>           <none>
+        pod/todo-app-dep-58fc874bc5-w5rxq        1/1     Running     0          71m   10.108.2.10   gke-dwk-cluster-default-pool-f81a64d1-02f0   <none>           1/1
+        pod/todo-backend-dep-5cbcd8d5b8-kwwh6    1/1     Running     0          71m   10.108.2.11   gke-dwk-cluster-default-pool-f81a64d1-02f0   <none>           1/1
+        pod/wiki-todo-generator-29417340-wgqbt   0/1     Completed   0          81m   10.108.0.5    gke-dwk-cluster-default-pool-f81a64d1-v074   <none>           <none>
+        pod/wiki-todo-generator-29417400-lvkzr   0/1     Completed   0          21m   10.108.2.14   gke-dwk-cluster-default-pool-f81a64d1-02f0   <none>           <none>
+
+        NAME                        TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE   SELECTOR
+        service/postgresql-db-svc   ClusterIP   None             <none>        5432/TCP   88m   app=postgresql-db
+        service/todo-app-svc        ClusterIP   34.118.232.235   <none>        1234/TCP   88m   app=todo-app
+        service/todo-backend-svc    ClusterIP   34.118.238.80    <none>        4567/TCP   88m   app=todo-backend
+
+        NAME                               READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS               IMAGES                                                                                                               SELECTOR
+        deployment.apps/todo-app-dep       1/1     1            1           88m   todo-app-container       asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-app:5da976263bb43057e76b55d9b26735758078629e       app=todo-app
+        deployment.apps/todo-backend-dep   1/1     1            1           88m   todo-backend-container   asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-backend:5da976263bb43057e76b55d9b26735758078629e   app=todo-backend
+
+        NAME                                          DESIRED   CURRENT   READY   AGE   CONTAINERS               IMAGES                                                                                                               SELECTOR
+        replicaset.apps/todo-app-dep-58fc874bc5       1         1         1       71m   todo-app-container       asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-app:5da976263bb43057e76b55d9b26735758078629e       app=todo-app,pod-template-hash=58fc874bc5
+        replicaset.apps/todo-app-dep-646d55d6dc       0         0         0       80m   todo-app-container       asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-app:4750f76d0b2c5a45b1d309d23b509a17275a6761       app=todo-app,pod-template-hash=646d55d6dc
+        replicaset.apps/todo-app-dep-8548d6bf97       0         0         0       88m   todo-app-container       asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-app:66f91eb78bc48772a8602e2dd00c6741e89b5592       app=todo-app,pod-template-hash=8548d6bf97
+        replicaset.apps/todo-backend-dep-595449c656   0         0         0       80m   todo-backend-container   asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-backend:4750f76d0b2c5a45b1d309d23b509a17275a6761   app=todo-backend,pod-template-hash=595449c656
+        replicaset.apps/todo-backend-dep-5cbcd8d5b8   1         1         1       71m   todo-backend-container   asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-backend:5da976263bb43057e76b55d9b26735758078629e   app=todo-backend,pod-template-hash=5cbcd8d5b8
+        replicaset.apps/todo-backend-dep-6447cf79fd   0         0         0       88m   todo-backend-container   asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-backend:66f91eb78bc48772a8602e2dd00c6741e89b5592   app=todo-backend,pod-template-hash=6447cf79fd
+
+        NAME                             READY   AGE   CONTAINERS      IMAGES
+        statefulset.apps/postgresql-db   1/1     88m   postgresql-db   postgres:latest
+
+        NAME                                SCHEDULE    TIMEZONE   SUSPEND   ACTIVE   LAST SCHEDULE   AGE   CONTAINERS   IMAGES                          SELECTOR
+        cronjob.batch/wiki-todo-generator   0 * * * *   <none>     False     0        21m             88m   wiki-todo    arkb2023/wiki-todo-cron:2.9.3   <none>
+
+        NAME                                     STATUS     COMPLETIONS   DURATION   AGE   CONTAINERS   IMAGES                          SELECTOR
+        job.batch/wiki-todo-generator-29417340   Complete   1/1           12s        81m   wiki-todo    arkb2023/wiki-todo-cron:2.9.3   batch.kubernetes.io/controller-uid=af8bf100-9470-4500-8e7f-0406e06115b5
+        job.batch/wiki-todo-generator-29417400   Complete   1/1           7s         21m   wiki-todo    arkb2023/wiki-todo-cron:2.9.3   batch.kubernetes.io/controller-uid=86c24fd7-b1c3-4918-af8b-98a957578057
+        ```
+    - `feature-ui-v1` Namespace
+      ```bash
+      kubectl get all -n feature-ui-v1 -o wide
+      ```
+      *Output*  
+      ```text
+      NAME                                     READY   STATUS      RESTARTS   AGE   IP            NODE                                         NOMINATED NODE   READINESS GATES
+      pod/postgresql-db-0                      1/1     Running     0          27m   10.108.2.12   gke-dwk-cluster-default-pool-f81a64d1-02f0   <none>           <none>
+      pod/todo-app-dep-58d657968d-cpsdw        1/1     Running     0          27m   10.108.0.6    gke-dwk-cluster-default-pool-f81a64d1-v074   <none>           <none>
+      pod/todo-backend-dep-d5844bbbc-blvxt     1/1     Running     0          27m   10.108.0.7    gke-dwk-cluster-default-pool-f81a64d1-v074   <none>           <none>
+      pod/wiki-todo-generator-29417400-hkz6g   0/1     Completed   0          21m   10.108.2.13   gke-dwk-cluster-default-pool-f81a64d1-02f0   <none>           <none>
+
+      NAME                        TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE   SELECTOR
+      service/postgresql-db-svc   ClusterIP   None             <none>        5432/TCP   27m   app=postgresql-db
+      service/todo-app-svc        ClusterIP   34.118.238.53    <none>        1234/TCP   27m   app=todo-app
+      service/todo-backend-svc    ClusterIP   34.118.227.157   <none>        4567/TCP   27m   app=todo-backend
+
+      NAME                               READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS               IMAGES                                                                                                               SELECTOR
+      deployment.apps/todo-app-dep       1/1     1            1           27m   todo-app-container       asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-app:a257f26ae4f6049dad2fe50064d9ca436b050671       app=todo-app
+      deployment.apps/todo-backend-dep   1/1     1            1           27m   todo-backend-container   asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-backend:a257f26ae4f6049dad2fe50064d9ca436b050671   app=todo-backend
+
+      NAME                                         DESIRED   CURRENT   READY   AGE   CONTAINERS               IMAGES                                                                                                               SELECTOR
+      replicaset.apps/todo-app-dep-58d657968d      1         1         1       27m   todo-app-container       asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-app:a257f26ae4f6049dad2fe50064d9ca436b050671       app=todo-app,pod-template-hash=58d657968d
+      replicaset.apps/todo-backend-dep-d5844bbbc   1         1         1       27m   todo-backend-container   asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-backend:a257f26ae4f6049dad2fe50064d9ca436b050671   app=todo-backend,pod-template-hash=d5844bbbc
+
+      NAME                             READY   AGE   CONTAINERS      IMAGES
+      statefulset.apps/postgresql-db   1/1     27m   postgresql-db   postgres:latest
+
+      NAME                                SCHEDULE    TIMEZONE   SUSPEND   ACTIVE   LAST SCHEDULE   AGE   CONTAINERS   IMAGES                          SELECTOR
+      cronjob.batch/wiki-todo-generator   0 * * * *   <none>     False     0        21m             27m   wiki-todo    arkb2023/wiki-todo-cron:2.9.3   <none>
+
+      NAME                                     STATUS     COMPLETIONS   DURATION   AGE   CONTAINERS   IMAGES                          SELECTOR
+      job.batch/wiki-todo-generator-29417400   Complete   1/1           8s         21m   wiki-todo    arkb2023/wiki-todo-cron:2.9.3   batch.kubernetes.io/controller-uid=1f1774a6-064f-4e72-8886-1bb975377c39
+      ```
+  - Validate SHA Images Deployed (Different SHAs!)
+    - `todo-app-dep` image in `project` Namespace
+      ```bash
+      kubectl get deployment -n project todo-app-dep -o jsonpath='{.spec.template.spec.containers[0].image}'
       ```
       *Output*
       ```text
-      NAME                                 STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
-      local-pv-claim                       Bound    pvc-a540ce25-ce14-494e-8806-815237dc72df   1Gi        RWO            standard-rwo   <unset>                 24m
-      postgresql-db-disk-postgresql-db-0   Bound    pvc-465d9ed0-273c-453b-9943-0a7c1c3d10e6   1Gi        RWO            standard-rwo   <unset>                 24m
+      asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-app:5da976263bb43057e76b55d9b26735758078629e
       ```
-    - Verify Image in `todo-app` and `todo-backend` deployments
-      - Check Todo App Deployment
-        ```bash
-        kubectl -n project describe deployment  todo-app-dep |grep -A4 "Pod Template:"
-        ```
-        *Output*
-        ```text
-        Pod Template:
-          Labels:  app=todo-app
-          Containers:
-          todo-app-container:
-            Image:      asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-app:bd6131216bdaa516ed2a360c6f0472bb40950e9a
-        ```
-      - Check Todo Backend App Deployment
-        ```bash
-        kubectl -n project describe deployment  todo-backend-dep |grep -A4 "Pod Template:"
-        ```
-        *Output*
-        ```text
-        Pod Template:
-          Labels:  app=todo-backend
-          Containers:
-          todo-backend-container:
-            Image:      asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-backend:bd6131216bdaa516ed2a360c6f0472bb40950e9a
-        ```
-    - GKE Cluster Health  
-        ```bash
-        kubectl -n project get all 
-        ```
-        *Output*
-        ```text
-        NAME                                     READY   STATUS      RESTARTS   AGE
-        pod/postgresql-db-0                      1/1     Running     0          22m
-        pod/todo-app-dep-f4c48bd87-2kmjz         1/1     Running     0          22m
-        pod/todo-backend-dep-698997bf5b-kzlbh    1/1     Running     0          22m
-        pod/wiki-todo-generator-29416920-n9kmf   0/1     Completed   0          7m36s
-
-        NAME                        TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
-        service/postgresql-db-svc   ClusterIP   None            <none>        5432/TCP   22m
-        service/todo-app-svc        ClusterIP   34.118.230.54   <none>        1234/TCP   22m
-        service/todo-backend-svc    ClusterIP   34.118.233.69   <none>        4567/TCP   22m
-
-        NAME                               READY   UP-TO-DATE   AVAILABLE   AGE
-        deployment.apps/todo-app-dep       1/1     1            1           22m
-        deployment.apps/todo-backend-dep   1/1     1            1           22m
-
-        NAME                                          DESIRED   CURRENT   READY   AGE
-        replicaset.apps/todo-app-dep-f4c48bd87        1         1         1       22m
-        replicaset.apps/todo-backend-dep-698997bf5b   1         1         1       22m
-
-        NAME                             READY   AGE
-        statefulset.apps/postgresql-db   1/1     22m
-
-        NAME                                SCHEDULE    TIMEZONE   SUSPEND   ACTIVE   LAST SCHEDULE   AGE
-        cronjob.batch/wiki-todo-generator   0 * * * *   <none>     False     0        7m37s           22m
-
-        NAME                                     STATUS     COMPLETIONS   DURATION   AGE
-        job.batch/wiki-todo-generator-29416920   Complete   1/1           13s        7m37s
-        ```
-    - Verify HTTProutes configured for `todo-app` and `todo-backend`
-      - Check Todo App Route    
-          ```bash
-          kubectl -n project describe httproute todo-app-route |grep -A3 -e "Name:.*todo-app-route" -e "Matches:"
-          ```
-          *Output*
-          ```text
-          Name:         todo-app-route
-          Namespace:    project
-          Labels:       <none>
-          Annotations:  <none>
-          --
-              Matches:
-                Path:
-                  Type:   PathPrefix
-                  Value:  /
-          ```
-      - Check Todo Backend App Route    
-          ```bash
-          kubectl -n project describe httproute todo-backend-route |grep -A3 -e "Name:.*todo-backend-route" -e "Matches:"
-          ```
-          *Output*
-          ```text
-          Name:         todo-backend-route
-          Namespace:    project
-          Labels:       <none>
-          Annotations:  <none>
-          --
-              Matches:
-                Path:
-                  Type:   PathPrefix
-                  Value:  /todos
-          ```
-      - Verify Gateway API controller status  
-        ```bash
-        kubectl -n project get gateway
-        ```
-        *Output*
-        ```text
-        NAME              CLASS                            ADDRESS          PROGRAMMED   AGE
-        project-gateway   gke-l7-global-external-managed   34.144.232.237   True         2m11s
-        ```
-  - Validate Live Application  
-    Use the Gateway Address `http://34.144.232.237` to access the application:  
-    - Test Todo App response on `/` HTTP endpoint:  
-      - Application returns the expected response  
-      ![caption](./images/01-initial-page.png)  
-    
-    - Test Todo Creation:  
-      - Application shows the created todo item in response    
-        ![caption](./images/02-post-todo-task-success.png)
+    - `todo-app-dep` image in `feature-ui-v1` Namespace
+      ```bash
+      kubectl get deployment -n feature-ui-v1 todo-app-dep -o jsonpath='{.spec.template.spec.containers[0].image}'
+      ```
+      *Output*
+      ```text
+      asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-app:a257f26ae4f6049dad2fe50064d9ca436b050671
+      ```
+  
+  - Validate Application Access (Both LIVE!)
+    - Feature branch application: `http://136.110.197.45`  
+      ![Main App LIVE](./images/01-feature-ui-v1-accessed.png)  
+    - Main branch Application: `http://35.244.202.196`
+      ![Feature App LIVE](./images/02-project-accessed.png)  
       
-## 8. Cleanup
+## 4. Cleanup
 
 **Delete all project resources (Kustomize)**
 ```bash
-kubectl delete -k environments/project-gke
+kubectl delete ns feature-ui-v1
+kubectl delete ns project
+
 ```
 **Delete GKE cluster**
 ```bash
@@ -304,3 +256,11 @@ gcloud container clusters delete dwk-cluster \
 ```
 
 ---
+
+
+<!--
+feature/ui-v1 
+bugfix/api-v2 
+release/v1.2 
+main
+-->
