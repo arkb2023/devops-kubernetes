@@ -123,3 +123,19 @@ jobs:
         # Verify deployment
         kubectl rollout status deployment todo-app-dep todo-backend-dep -n project --timeout=300s || true
         kubectl get pods,svc,gateway -n project
+
+
+        echo "kubectl get all -n project"
+        kubectl get all -n project
+
+        echo "Todo App Http Route: kubectl -n project describe httproute todo-app-route"
+        kubectl -n project describe httproute todo-app-route |grep -A3 -e "Name:.*todo-app-route" -e "Matches:"
+
+        echo "Todo Backend App Http Route: kubectl -n project describe httproute todo-backend-route"
+        kubectl -n project describe httproute todo-backend-route |grep -A3 -e "Name:.*todo-backend-route" -e "Matches:"
+        
+        echo "Todo App Image: kubectl -n project describe deployment  todo-app-dep"
+        kubectl -n project describe deployment  todo-app-dep |grep -A4 "Pod Template:"
+
+        echo "Todo Backend Image: kubectl -n project describe deployment  todo-backend-dep"
+        kubectl -n project describe deployment  todo-backend-dep |grep -A4 "Pod Template:"
