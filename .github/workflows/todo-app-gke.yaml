@@ -1,0 +1,80 @@
+name: Build, Publish & Deploy to GKE
+
+on:
+  push:
+    branches: 
+      - main
+    paths:
+      - 'the_project/todo_app/**'
+      - '.github/workflows/todo-app-gke.yml'
+env:
+  PROJECT_ID: ${{ secrets.GKE_PROJECT }}
+  GKE_CLUSTER: dwk-cluster
+  GKE_ZONE: asia-south1-a
+  REGISTRY: asia-south1-docker.pkg.dev
+  REPOSITORY: dwk-gke-repository 
+  IMAGE: dwk-environments
+  SERVICE: dwk-environments
+  BRANCH: ${{ github.ref_name }}
+
+# ...
+jobs:
+  build-publish-deploy:
+    name: Build, Publish and Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - id: auth
+      #name: Set up Cloud SDK
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GKE_SA_KEY }}
+    
+    - uses: google-github-actions/setup-gcloud@v2
+    
+    - name: 'Use gcloud CLI'
+      run: gcloud info
+# ...
+    # Configure Docker to use the gcloud command-line tool as a credential
+    # helper for authentication
+    - name: Configure Docker
+      run: gcloud --quiet auth configure-docker ${{ env.REGISTRY }}
+# ...
+    # Get the GKE credentials so we can deploy to the cluster
+    - name: 'Get GKE credentials'
+      # run: gcloud container clusters get-credentials "$GKE_CLUSTER" --zone "$GKE_ZONE"
+      uses: google-github-actions/get-gke-credentials@v2
+      with:
+        cluster_name: ${{ env.GKE_CLUSTER }}
+        location: ${{ env.GKE_ZONE }}
+        project_id: ${{ env.PROJECT_ID }}
+# ...
+    - name: 'Form the image name'
+      # europe-north-docker.pkg.dev/dwk-gke-12312/myregistry/dwk-environments:main-c00adaefda1f7169
+      # run: echo "IMAGE_TAG=gcr.io/$REGISTRY/$PROJECT_ID/$REPOSITORY/$IMAGE:$BRANCH-$GITHUB_SHA" >> $GITHUB_ENV
+      run: echo "IMAGE_TAG=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/todo-app:${{ github.sha }}"
+# ...
+    - name: Build
+      run: |-
+        cd the_project/todo_app/ && \
+        docker build --tag $IMAGE_TAG .
+
+    - name: Publish
+      run: docker push $IMAGE_TAG
+
+# ...
+    - name: Set up Kustomize
+      uses: imranismail/setup-kustomize@v2.1.0
+
+# ...
+    - name: Deploy with Kustomize
+      run: |-
+        # kubectl apply -k environments/project-gke
+        # kubectl rollout status deployment todo-app-dep todo-backend-dep -n project --timeout=300s
+        # kubectl get gateway -n project
+        # kubectl get svc -n project
+        # kubectl -n project get services -o wide
+

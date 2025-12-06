@@ -1,5 +1,14 @@
 name: Todo Apps - Build, Publish & Deploy
+
 on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/project-gke.yaml'  # Trigger on workflow change
+      - 'apps/the-project/**' # trigger on manifest change 
+      - 'environments/project-gke/**' # trigger on GKE environment change 
+      - 'the_project/todo_app/**' # trigger on todo app change 
+      - 'the_project/todo_backend/**' # trigger on todo backend app change 
   workflow_dispatch:  # Manual test
 env:
   GKE_CLUSTER: dwk-cluster
@@ -103,7 +112,8 @@ jobs:
         kustomize edit set image todo-backend:latest=$TODO_BACKEND_IMAGE
 
         echo "=== Final images ==="
-        kustomize build . | grep image
+        #kustomize build . | grep image
+        kustomize build . | grep -A3  image | grep -E "(todo-app|todo-backend)"
 
         # Build and deploy
         #cd -
