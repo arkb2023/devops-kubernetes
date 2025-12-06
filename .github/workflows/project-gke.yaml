@@ -103,7 +103,7 @@ jobs:
         # kustomize edit set image todo-app-container="$TODO_APP_IMAGE"
         # kustomize edit set image todo-backend-container="$TODO_BACKEND_IMAGE"
         # kustomize edit set image todo-backend:latest=asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-backend:SHA456
-        kustomize edit set image todo-backend:latest=$TODO_APP_IMAGE
+        kustomize edit set image todo-app:latest=$TODO_APP_IMAGE
         kustomize edit set image todo-backend:latest=$TODO_BACKEND_IMAGE
 
         echo "=== Final images ==="
