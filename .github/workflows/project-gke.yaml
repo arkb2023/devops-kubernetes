@@ -115,6 +115,7 @@ jobs:
         kustomize edit set image todo-app:latest=$TODO_APP_IMAGE
         kustomize edit set image todo-backend:latest=$TODO_BACKEND_IMAGE
 
+
         echo "=== Final images ==="
         #kustomize build . | grep image
         kustomize build . | grep -A3  image | grep -E "(todo-app|todo-backend)"
