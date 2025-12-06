@@ -109,9 +109,12 @@ jobs:
         else
           NAMESPACE="$SANITIZED_BRANCH"
         fi
-        kubectl create namespace $NAMESPACE || true
-        kubectl config set-context --current --namespace=$NAMESPACE
+        Patch ALL namespace-scoped resources
         kustomize edit set namespace "$NAMESPACE"
+        # Patch namespace.yaml resource itself
+        kubectl patch namespace "$NAMESPACE" --patch '{"metadata":{"name":"'"$NAMESPACE"'"}}' || kubectl create namespace $NAMESPACE || true
+        kubectl config set-context --current --namespace=$NAMESPACE
+        
         # Generate FULL image tags
         TODO_APP_IMAGE="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/todo-app:${GITHUB_SHA}"
         TODO_BACKEND_IMAGE="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/todo-backend:${GITHUB_SHA}"
