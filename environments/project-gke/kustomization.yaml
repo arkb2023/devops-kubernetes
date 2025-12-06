@@ -1,26 +1,25 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-resources:
-- namespace.yaml
-- persistentvolumeclaim.yaml
 
 # Common resources
-- ../../apps/the-project/
 
 # Gateway API & Routes
 # Routes references the service.
 # Keep this after service creation (from this-project/*service.yaml)
+resources:
+- namespace.yaml
+- persistentvolumeclaim.yaml
+- ../../apps/the-project/
 - gateway.yaml
 - todo-app-route.yaml
 - todo-backend-route.yaml
 
-# # Image overrides (runtime injection)
-# images:
-# - name: todo-app
-#   newName: asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-app
-#   newTag: "latest"  # Overridden by GitHub Actions
-
-# - name: todo-backend
-#   newName: asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-backend  
-#   newTag: "latest"
+# GKE-specific image transforms
+images:
+- name: todo-app:latest
+  newName: asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-app
+  newTag: placeholder-SHA
+- name: todo-backend:latest
+  newName: asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-backend
+  newTag: placeholder-SHA
