@@ -2,7 +2,7 @@ name: Todo Apps - Build, Publish & Deploy
 
 on:
   push:
-    branches: [ main ]
+    branches: [ '**' ] # All branches
     paths:
       - '.github/workflows/project-gke.yaml'  # Trigger on workflow change
       - 'apps/the-project/**' # trigger on manifest change 
