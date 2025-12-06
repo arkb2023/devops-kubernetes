@@ -102,19 +102,6 @@ jobs:
         BRANCH_NAME: ${{ github.ref_name }}
         #NAMESPACE: ${{ github.ref_name == 'main' && 'project' || format('project-{0}', github.ref_name) }}
       run: |
-        # Sanitize branch name: feature/ui → feature-ui
-        SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[\/]/-/g')
-        if [ "$SANITIZED_BRANCH" = "main" ]; then
-          NAMESPACE="project"
-        else
-          NAMESPACE="$SANITIZED_BRANCH"
-        fi
-        Patch ALL namespace-scoped resources
-        kustomize edit set namespace "$NAMESPACE"
-        # Patch namespace.yaml resource itself
-        kubectl patch namespace "$NAMESPACE" --patch '{"metadata":{"name":"'"$NAMESPACE"'"}}' || kubectl create namespace $NAMESPACE || true
-        kubectl config set-context --current --namespace=$NAMESPACE
-        
         # Generate FULL image tags
         TODO_APP_IMAGE="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/todo-app:${GITHUB_SHA}"
         TODO_BACKEND_IMAGE="${REGISTRY}/${PROJECT_ID}/${REPOSITORY}/todo-backend:${GITHUB_SHA}"
@@ -122,10 +109,22 @@ jobs:
         echo "Deploying:"
         echo "  Todo App: $TODO_APP_IMAGE"
         echo "  Todo Backend: $TODO_BACKEND_IMAGE"
+
+        # Sanitize branch name: feature/ui → feature-ui
+        SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[\/]/-/g')
+        if [ "$SANITIZED_BRANCH" = "main" ]; then
+          NAMESPACE="project"
+        else
+          NAMESPACE="$SANITIZED_BRANCH"
+        fi
+        
         cd environments/project-gke
+        kubectl create namespace "$NAMESPACE" || true
+        kubectl config set-context --current --namespace="$NAMESPACE"
+        kustomize edit set namespace "$NAMESPACE"
         kustomize edit set image todo-app:latest=$TODO_APP_IMAGE
         kustomize edit set image todo-backend:latest=$TODO_BACKEND_IMAGE
-
+        
 
         echo "=== Final images ==="
         #kustomize build . | grep image
@@ -139,7 +138,7 @@ jobs:
         # Verify deployment
         kubectl rollout status deployment todo-app-dep todo-backend-dep  --timeout=300s || true
         kubectl get pods,svc,gateway
-
+        kubectl get services -o wide
         echo "kubectl get all"
         kubectl get all
 
