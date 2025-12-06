@@ -99,10 +99,6 @@ jobs:
         echo "  Todo App: $TODO_APP_IMAGE"
         echo "  Todo Backend: $TODO_BACKEND_IMAGE"
         cd environments/project-gke
-        # Kustomize edit (works on all versions)
-        # kustomize edit set image todo-app-container="$TODO_APP_IMAGE"
-        # kustomize edit set image todo-backend-container="$TODO_BACKEND_IMAGE"
-        # kustomize edit set image todo-backend:latest=asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-backend:SHA456
         kustomize edit set image todo-app:latest=$TODO_APP_IMAGE
         kustomize edit set image todo-backend:latest=$TODO_BACKEND_IMAGE
 
