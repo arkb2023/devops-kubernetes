@@ -24,3 +24,4 @@ images:
   newName: asia-south1-docker.pkg.dev/dwk-gke-480015/dwk-gke-repository/todo-backend
   newTag: placeholder-SHA
 # Exercise 3.8 TEST: Sun Dec  7 10:10:09 IST 2025
+# Exercise 3.8 TEST04: Fixed config
