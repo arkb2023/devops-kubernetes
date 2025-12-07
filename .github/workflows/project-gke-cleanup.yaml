@@ -74,21 +74,21 @@ jobs:
             kubectl delete namespace "$NAMESPACE" --timeout=300s || true
             
             # POLLING LOOP - Perfect for report screenshots!
-            echo "⏳ Monitoring deletion progress..."
+            echo "Monitoring deletion progress..."
             for i in {1..30}; do
               STATUS=$(kubectl get ns "$NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null || echo "GONE")
               AGE=$(kubectl get ns "$NAMESPACE" -o jsonpath='{.metadata.creationTimestamp}' 2>/dev/null || echo "N/A")
               echo "[$i/30] Namespace $NAMESPACE: $STATUS"
               
               if [ "$STATUS" = "GONE" ]; then
-                echo "✅ Namespace $NAMESPACE fully deleted!"
+                echo "Namespace $NAMESPACE fully deleted!"
                 break
               fi
               sleep 5
             done
             
             echo "=== FINAL STATE ==="
-            kubectl get ns | grep -E "(project|$NAMESPACE)" || echo "✅ $NAMESPACE completely gone!"
+            kubectl get ns | grep -E "(project|$NAMESPACE)" || echo "$NAMESPACE completely gone!"
           else
             echo "Namespace $NAMESPACE not found."
           fi
