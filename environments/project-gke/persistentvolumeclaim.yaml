@@ -6,7 +6,8 @@ metadata:
 spec:
   #storageClassName: manual
   accessModes:
-    - ReadWriteOnce
+    #- ReadWriteOnce
+    - ReadWriteMany  # Multi-pod support!
   resources:
     requests:
       storage: 1Gi
