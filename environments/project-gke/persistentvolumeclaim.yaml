@@ -4,10 +4,10 @@ metadata:
   namespace: project
   name: local-pv-claim
 spec:
-  #storageClassName: manual
+  storageClassName: standard
   accessModes:
-    #- ReadWriteOnce
-    - ReadWriteMany  # Multi-pod support!
+    - ReadWriteOnce
+    #- ReadWriteMany  # Multi-pod support!
   resources:
     requests:
       storage: 1Gi
