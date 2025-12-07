@@ -25,3 +25,4 @@ images:
   newTag: placeholder-SHA
 # Exercise 3.8 TEST: Sun Dec  7 10:10:09 IST 2025
 # Exercise 3.8 TEST04: Fixed config
+# Exercise 3.8 TEST05: Fixed cleanup workflow in main
