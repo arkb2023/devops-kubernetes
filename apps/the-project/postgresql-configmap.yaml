@@ -10,7 +10,9 @@ data:
   POSTGRES_USER: testdbuser
   POSTGRES_DB: testdb
   #POSTGRES_PASSWORD: testdbuserpassword
-  DB_HOST: postgresql-db-svc.project.svc.cluster.local
+  # fix: multibranch - fqdn with namespace 'project' wondwork
+  #DB_HOST: postgresql-db-svc.project.svc.cluster.local
+  DB_HOST: postgresql-db-svc
   DB_PORT: "5432"
   PGDATA: /data/pgdata
   LOG_LEVEL: DEBUG
