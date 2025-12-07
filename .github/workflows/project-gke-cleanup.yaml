@@ -57,16 +57,39 @@ jobs:
           echo "=== BEFORE DELETION ==="
           kubectl get ns | grep -E "(project|$NAMESPACE)"
 
+          # if kubectl get ns "$NAMESPACE" >/dev/null 2>&1; then
+          #   echo "Deleting namespace: $NAMESPACE"
+          #   kubectl delete namespace "$NAMESPACE" --timeout=180s || true
+          #   echo "Namespace $NAMESPACE deleted."
+          # else
+          #   echo "Namespace $NAMESPACE not found. Nothing to clean."
+          # fi
+
+          # echo "=== AFTER DELETION ==="
+          # kubectl get ns | grep -E "(project|$NAMESPACE)"
+
+          # Start deletion
           if kubectl get ns "$NAMESPACE" >/dev/null 2>&1; then
-            echo "Deleting namespace: $NAMESPACE"
-            kubectl delete namespace "$NAMESPACE" --timeout=120s
-            echo "Namespace $NAMESPACE deleted."
+            echo "Initiating deletion of $NAMESPACE..."
+            kubectl delete namespace "$NAMESPACE" --timeout=300s || true
+            
+            # POLLING LOOP - Perfect for report screenshots!
+            echo "⏳ Monitoring deletion progress..."
+            for i in {1..30}; do
+              STATUS=$(kubectl get ns "$NAMESPACE" -o jsonpath='{.status.phase}' 2>/dev/null || echo "GONE")
+              AGE=$(kubectl get ns "$NAMESPACE" -o jsonpath='{.metadata.creationTimestamp}' 2>/dev/null || echo "N/A")
+              echo "[$i/30] Namespace $NAMESPACE: $STATUS"
+              
+              if [ "$STATUS" = "GONE" ]; then
+                echo "✅ Namespace $NAMESPACE fully deleted!"
+                break
+              fi
+              sleep 5
+            done
+            
+            echo "=== FINAL STATE ==="
+            kubectl get ns | grep -E "(project|$NAMESPACE)" || echo "✅ $NAMESPACE completely gone!"
           else
-            echo "Namespace $NAMESPACE not found. Nothing to clean."
+            echo "Namespace $NAMESPACE not found."
           fi
-
-          echo "=== AFTER DELETION ==="
-          kubectl get ns | grep -E "(project|$NAMESPACE)"
-
-
 
