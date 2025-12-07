@@ -1,0 +1,72 @@
+name: Todo Apps - On Branch Delete, Cleanup GKE Environment
+
+on:
+  delete:
+    branches:
+      - '**'   # All branches
+  workflow_dispatch:  # Manual test
+env:
+  GKE_CLUSTER: dwk-cluster
+  GKE_ZONE: asia-south1-a
+  PROJECT_ID: dwk-gke-480015
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo (optional, for scripts)
+        uses: actions/checkout@v4
+
+      - name: Auth to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GKE_SA_KEY }}
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.GKE_ZONE }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Compute namespace from deleted branch
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+          DELETED_REF: ${{ github.event.ref }}  # refs/heads/feature/ui-v1
+        run: |
+          echo "Deleted ref: $DELETED_REF"
+          BRANCH_NAME=${DELETED_REF#refs/heads/}     # feature/ui-v1
+          echo "Deleted Branch: $BRANCH_NAME"
+          SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[\/]/-/g')
+          if [ "$SANITIZED_BRANCH" = "main" ]; then
+            echo "Main branch deleted? Skipping cleanup."
+            exit 0
+          fi
+          NAMESPACE="$SANITIZED_BRANCH"                # matches deploy logic
+          echo "NAMESPACE=$NAMESPACE" >> $GITHUB_ENV
+
+      - name: Delete namespace (if exists)
+        env:
+          NAMESPACE: ${{ env.NAMESPACE }}
+        run: |
+          if [ -z "$NAMESPACE" ]; then
+            echo "No namespace computed, skipping."
+            exit 0
+          fi
+
+          echo "=== BEFORE DELETION ==="
+          kubectl get ns | grep -E "(project|$NAMESPACE)"
+
+          if kubectl get ns "$NAMESPACE" >/dev/null 2>&1; then
+            echo "Deleting namespace: $NAMESPACE"
+            kubectl delete namespace "$NAMESPACE" --timeout=120s
+            echo "Namespace $NAMESPACE deleted."
+          else
+            echo "Namespace $NAMESPACE not found. Nothing to clean."
+          fi
+
+          echo "=== AFTER DELETION ==="
+          kubectl get ns | grep -E "(project|$NAMESPACE)"
+
+
+
