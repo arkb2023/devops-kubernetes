@@ -1,14 +1,23 @@
-## Exercise 3.8. The project, step 17
+## Exercise 3.10. The project, step 18
 
-**Objective**: Create a new workflow so that deleting a branch deletes the environment.
+**Objective**: Create a CronJob that makes a backup of todo database (once per 24 hours) and saves it to Google Object Storage.
 
-**Key Changes from Base**  
-  - [.github/workflows/project-gke-cleanup.yaml](../.github/workflows/project-gke-cleanup.yaml) - Multi-Branch GitHub Actions Cleanup Workflow
+**Key Components**  
+  - [`postgresql-backup-cronjob.yaml`](./../apps/the-project/postgresql-backup-cronjob.yaml) - CronJob that backs up PostgreSQL database to Google Cloud Storage. Uses Workload Identity with PostgreSQL 18.
+    - Runs daily at 2:00 AM UTC (`schedule: "0 2 * * *"`)
+    - Uses PostgreSQL 18 client (matches database version)
+    - Backs up database using `pg_dump`
+    - Uploads backups to GCS bucket `dwk-gke-480015-backups`
+    - Uses Workload Identity for secure authentication (no stored keys)
+    - Backup files named as `backup-YYYY-MM-DD.sql`
 
-**Base Application Version**
-- [The project v3.7](https://github.com/arkb2023/devops-kubernetes/tree/3.7/the_project/)
+**Verification**
+- Backups successfully created and stored in Google Cloud Storage
+- CronJob executes on schedule
+- Backup files accessible via GCS console and `gsutil`
 
-**Bug Fixes:**
+**Base Application**
+- [The project v3.8](https://github.com/arkb2023/devops-kubernetes/tree/3.8/the_project/)
 
 ### 1. **Directory and File Structure**
 <pre>
@@ -23,6 +32,7 @@
   ├── cron_wiki_todo.yaml
   ├── kustomization.yaml
   ├── postgres-db-secret.yaml
+  ├── postgresql-backup-cronjob.yaml      # Newly added
   ├── postgresql-configmap.yaml
   ├── postgresql-service.yaml
   ├── postgresql-statefulset.yaml
@@ -77,141 +87,333 @@
 </pre>
 
 
-### 2. Prerequisites (GCP/GKE)
+### 2. **Setup Requirements**
 
 - Google Cloud CLI (`gcloud`) updated to 548.0.0
 - kubectl with `gke-gcloud-auth-plugin`
 - GCP Project: `dwk-gke-480015` configured
-- Cluster Creation:
-  ```bash
-  gcloud container clusters create dwk-cluster \
-    --zone=asia-south1-a \
-    --cluster-version=1.32 \
-    --num-nodes=3 \
-    --machine-type=e2-medium \
-    --gateway-api=standard \
-    --disk-size=50 \
-    --enable-ip-alias
-  ```
-- Fetch and configure Kubernetes cluster access credentials locally, enabling kubectl to authenticate and manage the specified GKE cluster  
-  ```bash
-  gcloud container clusters get-credentials dwk-cluster --zone=asia-south1-a
-  ```
 - Google service Account `github-actions`wtih required IAM roles  
 - Google Artifact Registry - repository `dwk-gke-repository` (asia-south1)  
 - GitHub Actions authentication for GKE + Artifact Registry via Repository Secrets  
+- Set environment variables  
+    ```bash
+    export PROJECT_ID=$(gcloud config get-value project)
+    export BUCKET="dwk-gke-480015-backups"
+    export CLUSTER_NAME="dwk-cluster"
+    export ZONE="asia-south1-a"
+    ```
 
+### 3. Cluster Setup
+- Cluster Creation:
+    ```bash
+    gcloud container clusters create dwk-cluster \
+      --zone=asia-south1-a \
+      --cluster-version=1.32 \
+      --num-nodes=3 \
+      --machine-type=e2-medium \
+      --gateway-api=standard \
+      --disk-size=50 \
+      --enable-ip-alias \
+      --scopes=cloud-platform \
+      --workload-pool=${PROJECT_ID}.svc.id.goog
+    ```
+    Output:  
+    ```text
+    Creating cluster dwk-cluster in asia-south1-a... Cluster is being health-checked (Kubernetes Control Plane is healthy)...done.
+    Created [https://container.googleapis.com/v1/projects/dwk-gke-480015/zones/asia-south1-a/clusters/dwk-cluster].
+    To inspect the contents of your cluster, go to: https://console.cloud.google.com/kubernetes/workload_/gcloud/asia-south1-a/dwk-cluster?project=dwk-gke-480015
+    kubeconfig entry generated for dwk-cluster.
+    NAME         LOCATION       MASTER_VERSION      MASTER_IP      MACHINE_TYPE  NODE_VERSION        NUM_NODES  STATUS   STACK_TYPE
+    dwk-cluster  asia-south1-a  1.32.9-gke.1239000  35.244.48.212  e2-medium     1.32.9-gke.1239000  3          RUNNING  IPV4
+    ```
+    > Enabled Workload Identity on cluster.  
+- Get credentials 
+    ```bash
+    gcloud container clusters get-credentials dwk-cluster \
+    --zone=asia-south1-a \
+    --project=$PROJECT_ID
+    ```
+    Output:  
+    ```text
+    Fetching cluster endpoint and auth data.
+    kubeconfig entry generated for dwk-cluster.
+    ```
+- Verify scope
+    ```bash
+    gcloud container node-pools describe default-pool \
+    --cluster=dwk-cluster \
+    --zone=asia-south1-a \
+    --format="value(config.oauthScopes)"
+    ```
+    Output:  
+    ```text
+    https://www.googleapis.com/auth/cloud-platform
+    ```
 
-### 3. Cleanup Pipeline validation
-  - Trigger Deployment from `main` and `feature/deploy-test` branch  
-    - Feature branch:  
+### 4. Create GCS Bucket
+  ```bash
+  gsutil mb -l asia-south1 gs://$BUCKET
+  ```
+  Output:  
+  ```text
+  Creating gs://dwk-gke-480015-backups/...  
+  ```
+### 5. Create GCS Service Account
+  ```bash
+  gcloud iam service-accounts create postgres-backup-sa \
+    --display-name="PostgreSQL Backup Service Account"
+  ```
+  Output:  
+  ```text
+  Created service account [postgres-backup-sa].
+  ```    
+
+### 6. Grant storage permissions to GCP Service Account
+  ```bash
+  gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="serviceAccount:gcs-backup-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --role="roles/storage.objectCreator"
+  ```
+  Output:  
+  ```text
+  Updated IAM policy for project [dwk-gke-480015].
+  bindings:
+  - members:
+    - serviceAccount:github-actions@dwk-gke-480015.iam.gserviceaccount.com
+    role: roles/artifactregistry.admin
+  - members:
+    - serviceAccount:github-actions@dwk-gke-480015.iam.gserviceaccount.com
+    role: roles/artifactregistry.createOnPushRepoAdmin
+  - members:
+    - serviceAccount:github-actions@dwk-gke-480015.iam.gserviceaccount.com
+    role: roles/artifactregistry.reader
+  - members:
+    - serviceAccount:service-929711803146@gcp-sa-artifactregistry.iam.gserviceaccount.com
+    role: roles/artifactregistry.serviceAgent
+  - members:
+    - serviceAccount:929711803146@cloudbuild.gserviceaccount.com
+    role: roles/cloudbuild.builds.builder
+  - members:
+    - serviceAccount:service-929711803146@gcp-sa-cloudbuild.iam.gserviceaccount.com
+    role: roles/cloudbuild.serviceAgent
+  - members:
+    - serviceAccount:service-929711803146@compute-system.iam.gserviceaccount.com
+    role: roles/compute.serviceAgent
+  - members:
+    - serviceAccount:service-929711803146@gcp-sa-gkenode.iam.gserviceaccount.com
+    role: roles/container.defaultNodeServiceAgent
+  - members:
+    - serviceAccount:github-actions@dwk-gke-480015.iam.gserviceaccount.com
+    - serviceAccount:service-929711803146@container-engine-robot.iam.gserviceaccount.com
+    role: roles/container.serviceAgent
+  - members:
+    - serviceAccount:service-929711803146@containerregistry.iam.gserviceaccount.com
+    role: roles/containerregistry.ServiceAgent
+  - members:
+    - serviceAccount:929711803146-compute@developer.gserviceaccount.com
+    - serviceAccount:929711803146@cloudservices.gserviceaccount.com
+    role: roles/editor
+  - members:
+    - serviceAccount:service-929711803146@gcp-sa-networkconnectivity.iam.gserviceaccount.com
+    role: roles/networkconnectivity.serviceAgent
+  - members:
+    - user:role.owner@gmail.com
+    role: roles/owner
+  - members:
+    - serviceAccount:service-929711803146@gcp-sa-pubsub.iam.gserviceaccount.com
+    role: roles/pubsub.serviceAgent
+  - members:
+    - serviceAccount:github-actions@dwk-gke-480015.iam.gserviceaccount.com
+    - serviceAccount:postgres-backup-sa@dwk-gke-480015.iam.gserviceaccount.com
+    role: roles/storage.admin
+  - members:
+    - serviceAccount:postgres-backup-sa@dwk-gke-480015.iam.gserviceaccount.com
+    role: roles/storage.objectCreator
+  etag: BwZFaZk5ft4=
+  version: 1  
+  ```
+
+### 4. Deploy the project applications
+  - Trigger the GitHub deployment pipeline [Run #20017761578](https://github.com/arkb2023/devops-kubernetes/actions/runs/20017761578)  
+  - Verify the application pods are up and running  
+    ```bash
+    kubectl  -n project get pods
+    ```
+    Output:  
+    ```text
+    NAME                                READY   STATUS    RESTARTS   AGE
+    postgresql-db-0                     1/1     Running   0          84s
+    todo-app-dep-9db5b57d7-k5l2t        1/1     Running   0          86s
+    todo-backend-dep-66599fb868-zwksh   1/1     Running   0          85s
+    ```
+### 5. Apply the Kubernetes manifests: ServiceAccount + CronJob
+  - Apply the the manifest  
       ```bash
-      git checkout -b feature/deploy-test
-      echo "# Exercise 3.8 TEST04: Fixed config" >> environments/project-gke/kustomization.yaml
-      git commit -m "[Exercise: 3.8. The project, step 17] Test04- Build, Publish & Deploy"
-      git push origin feature/deploy-test
+      kubectl apply -f apps/the-project/postgresql-backup-cronjob.yaml
       ```
-    - Main branch:  
+      Output:  
+      ```text
+      serviceaccount/postgres-backup-sa created
+      cronjob.batch/postgres-backup configured
+      ```
+    - Verify job schedule  
       ```bash
-      git checkout main
-      git add .
-      echo "# Exercise 3.8 TEST04: Fixed config" >> environments/project-gke/kustomization.yaml
-      git commit -m "[Exercise: 3.8. The project, step 17] Test04- Build, Publish & Deploy"
-      git push origin main
+      kubectl get cronjob -n project | grep postgres-backup
       ```
-  - Deploy Pipelines:
-    - `main` [Run #19999659810](https://github.com/arkb2023/devops-kubernetes/actions/runs/19999659810)
-    - `feature/deploy-test` [Run #19999682641](https://github.com/arkb2023/devops-kubernetes/actions/runs/19999682641) 
-  - Active Namespaces:  
+      Output:  
+      ```text
+      NAME                  SCHEDULE    TIMEZONE   SUSPEND   ACTIVE   LAST SCHEDULE   AGE
+      postgres-backup       0 2 * * *   <none>     False     0        <none>          20m
+      ```
+    - Verify cronjob details  
+        ```bash
+        kubectl describe cronjob postgres-backup -n project | grep -A 5 -e "Name:" -e "Schedule:" -e "Job Template:" -e "Service Account:"
+        ```
+        Output:  
+        ```text
+        Name:                          postgres-backup
+        Namespace:                     project
+        Labels:                        <none>
+        Annotations:                   <none>
+        Schedule:                      0 2 * * *
+        Concurrency Policy:            Allow
+        Suspend:                       False
+        Successful Job History Limit:  3
+        Failed Job History Limit:      3
+        Starting Deadline Seconds:     <unset>
+        --
+          Service Account:  postgres-backup-sa
+          Containers:
+          backup:
+            Image:      postgres:18-alpine
+            Port:       <none>
+            Host Port:  <none>
+        ```
+      > loads the job with 24hr schedule  
+### 6. Bind GCP Service Account to Kubernetes ServiceAccount  
+  - Binding service accounts for Workload Identity  
     ```bash
-    kubectl get ns |egrep -i "NAME|feature|project"
-    ```
-    *Output*
-    ```text
-    NAME                          STATUS   AGE
-    feature-deploy-test           Active   16m
-    project                       Active   11m
-    ```
-  - Gateway Isolation (Unique IPs!):
-    ```bash
-    kubectl get gateway -A
-    ```
-    *Output*
-    ```text
-    NAMESPACE             NAME              CLASS                            ADDRESS       PROGRAMMED   AGE
-    feature-deploy-test   project-gateway   gke-l7-global-external-managed   34.8.36.183   True         17m
-    project               project-gateway   gke-l7-global-external-managed   34.8.79.182   True         12m
-    ```
-- Cleanup Trigger:
-    ```bash
-    git push origin --delete feature/deploy-test
-    ```
-    *Output*
-    ```text
-    To github.com:arkb2023/devops-kubernetes.git
-    - [deleted]         feature/deploy-test
+    gcloud iam service-accounts add-iam-policy-binding \
+      postgres-backup-sa@${PROJECT_ID}.iam.gserviceaccount.com \
+      --role=roles/iam.workloadIdentityUser \
+      --member="serviceAccount:${PROJECT_ID}.svc.id.goog[project/postgres-backup-sa]"
     ```
 
-- Cleanup Pipeline: [Run #19999824142](https://github.com/arkb2023/devops-kubernetes/actions/runs/19999824142)
-  - Cleanup job:  
-    ![Cleanup Workflow Success](./images/github/01-main-and-feature-deploy-cleanup-branch-workflows-success.png)
-  - Cleanup stages:  
-    ![Cleanup Stages](./images/github/02-branch-cleanup-workflow-stages.png)
-  - Cleanup - namespace deletion stage  
-    ![Namespace Deletion Stage](./images/github/03-branch-cleanup-workflow-delete-namespace-stage.png)
+### 7. Test with manual jobs  
 
-- Namespace Termination 
-  - Live Monitoring
+  - **Job#1**  
     ```bash
-    kubectl get ns -w |egrep -i "NAME|feature|project"
+    kubectl -n project create job --from=cronjob/postgres-backup test-backup-001
     ```
-    *Output*
+    Output:  
     ```text
-    NAME                          STATUS        AGE
-    feature-deploy-test           Terminating   20m
-    project                       Active        15m
-    feature-deploy-test           Terminating   20m
-    feature-deploy-test           Terminating   21m
-    feature-deploy-test           Terminating   21m
+    job.batch/test-backup-001 created
     ```
-  - Feature namespace GONE, Main Preserved
+    - Monitor Job#1 logs
+        ```bash
+        kubectl logs job/test-backup-001 -n project -f
+        ```
+        Output:  
+        ```text
+        ...<snip>---
+        Starting backup of database: testdb
+        Uploading backup to gs://dwk-gke-480015-backups/backup-2025-12-08.sql
+        Copying file:///tmp/backup-2025-12-08.sql [Content-Type=application/octet-stream]...
+        / [1 files][  2.2 KiB/  2.2 KiB]
+        Operation completed over 1 objects/2.2 KiB.
+        Backup completed successfully!
+        ```
+  - **Job#2**  
     ```bash
-    kubectl get ns |egrep -i "NAME|feature|project"
+    kubectl -n project create job --from=cronjob/postgres-backup test-backup-002
     ```
-    *Output*
+    Output:  
     ```text
-    NAME                          STATUS   AGE
-    project                       Active   18m
+    job.batch/test-backup-002 created
     ```
-    kubectl get gateway -A
+    - Monitor Job#2 logs
+        ```bash
+        kubectl logs job/test-backup-002 -n project -f
+        ```
+        Output:  
+        ```text
+        ...<snip>---
+        Starting backup of database: testdb
+        Uploading backup to gs://dwk-gke-480015-backups/backup-2025-12-08-054732.sql
+        Copying file:///tmp/backup-2025-12-08-054732.sql [Content-Type=application/octet-stream]...
+        / [1 files][  2.2 KiB/  2.2 KiB]
+        Operation completed over 1 objects/2.2 KiB.
+        Backup completed successfully!      
+        ```
+  - **Job#3**  
+    ```bash
+    kubectl -n project create job --from=cronjob/postgres-backup test-backup-003
     ```
-    *Output*
+    Output:  
     ```text
-    NAMESPACE   NAME              CLASS                            ADDRESS       PROGRAMMED   AGE
-    project     project-gateway   gke-l7-global-external-managed   34.8.79.182   True         18m
+    job.batch/test-backup-003 created
     ```
-## 4. Cleanup
+    - Monitor Job#3 logs        
+        ```bash
+        kubectl logs job/test-backup-003 -n project -f
+        ```        
+        ```text
+        ...<snip>---
+        Starting backup of database: testdb
+        Uploading backup to gs://dwk-gke-480015-backups/backup-2025-12-08-054819.sql
+        Copying file:///tmp/backup-2025-12-08-054819.sql [Content-Type=application/octet-stream]...
+        / [1 files][  2.2 KiB/  2.2 KiB]
+        Operation completed over 1 objects/2.2 KiB.
+        Backup completed successfully!
+        ```
+  - Verify jobs completion  
+      ```bash
+      kubectl -n project get jobs 
+      ```
+      Output:  
+      ```text
+      NAME              STATUS     COMPLETIONS   DURATION   AGE
+      test-backup-001   Complete   1/1           49s        22m
+      test-backup-002   Complete   1/1           40s        8m42s
+      test-backup-003   Complete   1/1           39s        7m54s
+      ```
 
-**Delete all project resources**
+### 8. Verify backup in Google Cloud Storage Bucket  
+  ![caption](./images/01-backup.png)  
+
+### 9. Cleanup
+
 ```bash
+# Delete all project resources
 kubectl delete ns project
 
-```
-**Delete GKE cluster**
-```bash
+# Delete GCS bucket and all backups
+gsutil rm -r gs://$BUCKET/
+
+# Remove IAM policy bindings from GCP Service Account
+gcloud projects remove-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:postgres-backup-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/storage.admin"
+
+gcloud projects remove-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:postgres-backup-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/storage.objectCreator"
+
+# Remove Workload Identity binding
+gcloud iam service-accounts remove-iam-policy-binding \
+  postgres-backup-sa@${PROJECT_ID}.iam.gserviceaccount.com \
+  --role=roles/iam.workloadIdentityUser \
+  --member="serviceAccount:${PROJECT_ID}.svc.id.goog[project/postgres-backup-sa]"
+
+# Delete GCP Service Account
+gcloud iam service-accounts delete \
+  postgres-backup-sa@${PROJECT_ID}.iam.gserviceaccount.com \
+  --quiet
+
+# Delete GKE cluster
 gcloud container clusters delete dwk-cluster \
   --zone=asia-south1-a \
   --quiet
 ```
-
 ---
-
-
-<!--
-feature/ui-v1 
-bugfix/api-v2 
-release/v1.2 
-main
--->
-
 

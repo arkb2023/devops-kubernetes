@@ -9,6 +9,7 @@ resources:
 - postgresql-configmap.yaml
 - postgresql-service.yaml
 - postgresql-statefulset.yaml
+- postgresql-backup-cronjob.yaml
 
 # Todo App
 - todo-app-deployment.yaml

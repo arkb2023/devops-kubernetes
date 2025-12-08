@@ -1,0 +1,76 @@
+# Kubernetes ServiceAccount for Workload Identity
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: postgres-backup-sa
+  namespace: project
+  annotations:
+    iam.gke.io/gcp-service-account: postgres-backup-sa@dwk-gke-480015.iam.gserviceaccount.com
+
+---
+# CronJob using Workload Identity with PostgreSQL 18
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: project
+spec:
+  schedule: "0 2 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: postgres-backup-sa
+          containers:
+          - name: backup
+            image: postgres:18-alpine
+            envFrom:
+            - configMapRef:
+                name: postgres-db-config
+            env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-db-secret
+                  key: POSTGRES_PASSWORD
+            - name: GCS_BUCKET
+              value: "dwk-gke-480015-backups"
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              
+              # Install gcloud SDK
+              apk add --no-cache curl python3 py3-pip
+              curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-linux-x86_64.tar.gz
+              tar -xf google-cloud-cli-linux-x86_64.tar.gz
+              ./google-cloud-sdk/install.sh --quiet --usage-reporting false --path-update false
+              export PATH=$PATH:$(pwd)/google-cloud-sdk/bin
+              
+              # Workload Identity handles authentication automatically
+              
+              # Generate backup filename with date
+              #BACKUP_FILE="backup-$(date +%Y-%m-%d).sql"
+              BACKUP_FILE="backup-$(date +%Y-%m-%d-%H%M%S).sql"
+              
+              # Create backup using pg_dump
+              echo "Starting backup of database: $POSTGRES_DB"
+              PGPASSWORD=$POSTGRES_PASSWORD pg_dump \
+                -h $DB_HOST \
+                -p $DB_PORT \
+                -U $POSTGRES_USER \
+                -d $POSTGRES_DB \
+                > /tmp/$BACKUP_FILE
+              
+              # Upload to Google Cloud Storage
+              echo "Uploading backup to gs://$GCS_BUCKET/$BACKUP_FILE"
+              gsutil cp /tmp/$BACKUP_FILE gs://$GCS_BUCKET/$BACKUP_FILE
+              
+              echo "Backup completed successfully!"
+              
+              # Clean up local file
+              rm /tmp/$BACKUP_FILE
+          restartPolicy: OnFailure
