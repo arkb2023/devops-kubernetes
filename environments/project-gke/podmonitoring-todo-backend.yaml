@@ -1,0 +1,13 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: todo-backend-metrics
+  namespace: project
+spec:
+  selector:
+    matchLabels:
+      app: todo-backend   # must match your Deployment's pod labels
+  endpoints:
+  - port: 4567           # must match containerPort name or number
+    path: /metrics
+    interval: 30s

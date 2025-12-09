@@ -1,164 +1,212 @@
-## Exercise 3.11. The project, step 19
+## Exercise 3.12. The project, step 20
 
-**Objective**: Set sensible resource requests/limits for project pods using `kubectl top pods` for measurement.
+**Objective**: Enable logging for the project in GKE and optionally demonstrate Prometheus-based monitoring for the cluster.
 
-**Approach**: Benchmark Baseline resource consumption, Set resource requests and limits with reasonable headroom. Test setup stability
+**Key Components**  
+- Cloud Operations for GKE logging enabled so application logs from the `project` namespace (todo app) are sent to Cloud Logging.
+- Managed Service for Prometheus enabled at cluster level and queried via Metrics Explorer (PromQL).  
 
-**Setup:** GKE e2-medium nodes (2 vCPU, 4GB RAM × 3 nodes)
+**Verification**
+- Confirmed todo application logs appear in Cloud Logging when a new todo is created.
+- Executed a PromQL query and observed non-zero results for system namespaces, proving Prometheus metrics are being scraped.
 
-**1. Baseline Measurement:** 
-  - Deployed app **without explicit resources/limits**
-  - Generated continuous load (60s): `curl http://<IP>/` + `curl http://<IP>/todos` 
-  - Captured 3×60s CPU and Memory metrics: `kubectl -n project top pods > metrics-*.txt`  
-      ```bash
-      cat metrics-*.txt
-      ```
-      Output:
-      ```text
-      NAME                                CPU(cores)   MEMORY(bytes)
-      postgresql-db-0                     1m           42Mi
-      todo-app-dep-575b95b59d-69cmh       4m           45Mi
-      todo-backend-dep-69b8f4b96f-4stwn   3m           56Mi
-      devops-kubernetes [main]$ cat metrics-2.txt
-      NAME                                CPU(cores)   MEMORY(bytes)
-      postgresql-db-0                     1m           42Mi
-      todo-app-dep-575b95b59d-69cmh       3m           45Mi
-      todo-backend-dep-69b8f4b96f-4stwn   3m           56Mi
-      devops-kubernetes [main]$ cat metrics-3.txt
-      NAME                                CPU(cores)   MEMORY(bytes)
-      postgresql-db-0                     1m           42Mi
-      todo-app-dep-575b95b59d-69cmh       4m           45Mi
-      todo-backend-dep-69b8f4b96f-4stwn   3m           56Mi
-      ```
-  - **Results**: Max resource usage found to be approx,  
-      - Frontend: 4.0m CPU, 45Mi Mem
-      - Backend:  3.0m CPU, 56Mi Mem
-      - Postgres: 1.0m CPU, 42Mi Mem
-  - **Conclusion**: >95% headroom w.r.t. vCPU and Memory
+**Base Application**
+- [The project v3.10](https://github.com/arkb2023/devops-kubernetes/tree/3.10/the_project/)
 
-**2. Test by setting explicit resource limits**
-  - Patched deployments/StatefulSet with reasonable/sensible higher resource values,
-    - Todo App Frontend:
-      - requests 10m/64Mi, limits 50m/128Mi
-      - Patch file: [todo-app-resources-patch.yaml](../apps/the-project/patch/todo-app-resources-patch.yaml)
-      - Patch Todo frontend application  
-        ```bash
-        kubectl -n project patch deployment todo-app-dep \
-          --patch-file=apps/the-project/patch/todo-app-resources-patch.yaml \
-          --type=strategic
-        ```
-        Output:  
-        ```text
-        deployment.apps/todo-app-dep patched
-        ```
-      - Verify patch  
-        ```bash
-        kubectl -n project describe pod todo-app-dep-77b88987dc-tspwb | grep   " todo-app-dep\|Limits\|Requests\|cpu:\|memory:"
-        ```
-        Output:  
-        ```text
-        Name:             todo-app-dep-77b88987dc-tspwb
-            Limits:
-              cpu:     50m
-              memory:  128Mi
-            Requests:
-              cpu:     10m
-              memory:  64Mi
-        ```
 
-    - Todo Backend App:  
-      - requests 10m/64Mi, limits 100m/128Mi  
-      - Patch file: [todo-backend-resources-patch.yaml](../apps/the-project/patch/todo-backend-resources-patch.yaml)
-      - Patch Todo backend application  
-        ```bash
-        kubectl -n project patch deployment todo-backend-dep \
-        --patch-file=apps/the-project/patch/todo-backend-resources-patch.yaml \
-        --type=strategic
-        ```
-        Output:  
-        ```text
-        deployment.apps/todo-backend-dep patched
-        ```
-      - Verify patch  
-        ```bash
-        kubectl -n project describe pod todo-backend-dep-54b4bdcf48-grq8t | grep   " todo-backend-dep\|Limits\|Requests\|cpu:\|memory:"
-        ```
-        Output:  
-        ```text
-        Name:             todo-backend-dep-54b4bdcf48-grq8t
-            Limits:
-              cpu:     100m
-              memory:  128Mi
-            Requests:
-              cpu:     10m
-              memory:  64Mi
-        ```    
+### 1. **Directory and File Structure**
+<pre>
+  # Github actions workflow
+  .github/
+  └── workflows
+      ├── project-gke.yaml
+      └── project-gke-cleanup.yaml
 
-    - Postgres: 
-      - Requests 50m/128Mi, limits 250m/256Mi
-      - Patch file: [postgresql-resources-patch.yaml](../apps/the-project/patch/postgresql-resources-patch.yaml)
-      - Patch Postgresql resources      
-          ```bash
-          kubectl -n project patch statefulset postgresql-db \
-          --patch-file=apps/the-project/patch/postgresql-resources-patch.yaml \
-          --type=strategic
-          ```
-          Output:
-          ```text
-          statefulset.apps/postgresql-db patched
-          ```
-          - Verify patch  
-          ```bash
-          kubectl -n project describe statefulset postgresql-db | grep   " postgresql-db\|Limits\|Requests\|cpu:\|memory:"
-          ```
-          Output:  
-          ```text
-          Name:               postgresql-db
-            postgresql-db:
-              Limits:
-                cpu:     250m
-                memory:  256Mi
-              Requests:
-                cpu:     50m
-                memory:  128Mi
-          ```
+  # kustomization: Common Project resource yamls 
+  apps/the-project/
+  ├── cron_wiki_todo.yaml
+  ├── kustomization.yaml
+  ├── postgres-db-secret.yaml
+  ├── postgresql-backup-cronjob.yaml
+  ├── postgresql-configmap.yaml
+  ├── postgresql-service.yaml
+  ├── postgresql-statefulset.yaml
+  ├── project-configmap.yaml
+  ├── todo-app-deployment.yaml
+  ├── todo-app-service.yaml
+  ├── todo-backend-deployment.yaml
+  └── todo-backend-service.yaml
 
-  - Re-tested load: 
-    - Frontend peaked 50m CPU (limit hit)
-    - Memory usage: 47%/46%/12% of limits (all <50%)
-  - Captured CPU and Memory metrics: `kubectl -n project top pods > metrics-*.txt`  
+  # kustomization: GKE Project resource yamls 
+  environments/project-gke/
+  ├── gateway.yaml
+  ├── kustomization.yaml
+  ├── namespace.yaml
+  ├── persistentvolumeclaim.yaml
+  ├── todo-app-route.yaml
+  └── todo-backend-route.yaml
+
+  # Todo App 
+  the_project/todo_app/
+  ├── Dockerfile
+  ├── app
+  │   ├── __init__.py
+  │   ├── cache.py
+  │   ├── main.py
+  │   ├── routes
+  │   │   ├── __init__.py
+  │   │   └── frontend.py
+  │   ├── static
+  │   │   └── scripts.js
+  │   └── templates
+  │       └── index.html
+
+  # Todo Backend App 
+  the_project/todo_backend/
+  ├── Dockerfile
+  ├── app
+  │   ├── __init__.py
+  │   ├── main.py
+  │   ├── models.py
+  │   ├── routes
+  │   │   ├── __init__.py
+  │   │   └── todos.py
+  │   └── storage.py
+  ├── docker-compose.yml
+  └── wait-for-it.sh
+
+  # Wiki Todo Generator CronJob
+  the_project/cronjob/
+  ├── Dockerfile
+  └── cron_wiki_todo.py
+</pre>
+
+
+### 2. **Setup Requirements**
+
+- Google Cloud CLI (`gcloud`) updated to 548.0.0
+- kubectl with `gke-gcloud-auth-plugin`
+- GCP Project: `dwk-gke-480015` configured
+- Google service Account `github-actions`wtih required IAM roles  
+- Google Artifact Registry - repository `dwk-gke-repository` (asia-south1)  
+- GitHub Actions authentication for GKE + Artifact Registry via Repository Secrets  
+- Set environment variables  
     ```bash
-    cat metrics-1.txt
+    export PROJECT_ID=$(gcloud config get-value project)
+    export CLUSTER_NAME="dwk-cluster"
+    export ZONE="asia-south1-a"
+    ```
+
+### 3. Cluster Setup
+- Create cluster:
+    ```bash
+    gcloud container clusters create $CLUSTER_NAME \
+        --zone=$ZONE \
+        --cluster-version=1.32 \
+        --num-nodes=3 \
+        --machine-type=e2-medium \
+        --gateway-api=standard \
+        --disk-size=50 \
+        --enable-ip-alias
+    ```
+- Get credentials:
+  ```bash
+  gcloud container clusters get-credentials $CLUSTER_NAME --zone=$ZONE --project=$PROJECT_ID
+  ```
+- Enable GKE logging for system + workloads:
+  ```bash
+  gcloud container clusters update "$CLUSTER_NAME" \
+    --zone="$ZONE" \
+    --logging=SYSTEM,WORKLOAD
+  ```
+  Output:
+  ```text
+  Updating dwk-cluster...done.
+  Updated [https://container.googleapis.com/v1/projects/dwk-gke-480015/zones/asia-south1-a/clusters/dwk-cluster].
+  To inspect the contents of your cluster, go to: https://console.cloud.google.com/kubernetes/workload_/gcloud/asia-south1-a/dwk-cluster?project=dwk-gke-480015
+  ```
+- Verify logging / monitoring configuration: 
+  ```bash
+  gcloud container clusters describe $CLUSTER_NAME --zone=$ZONE | grep -E "monitoring|logging"
+  ```
+  Output:
+  ```text
+      - https://www.googleapis.com/auth/logging.write
+      - https://www.googleapis.com/auth/monitoring
+  loggingConfig:
+  loggingService: logging.googleapis.com/kubernetes
+  monitoringConfig:
+  monitoringService: monitoring.googleapis.com/kubernetes
+    - https://www.googleapis.com/auth/logging.write
+    - https://www.googleapis.com/auth/monitoring
+      loggingConfig:
+      - https://www.googleapis.com/auth/logging.write
+      - https://www.googleapis.com/auth/monitoring  
+  ```
+- Enable Managed Service for Prometheus:
+  ```bash
+  gcloud container clusters update "$CLUSTER_NAME" \
+    --zone="$ZONE" \
+    --enable-managed-prometheus
+  ```
+  Output:
+  ```text
+  Updating dwk-cluster...done.
+  Updated [https://container.googleapis.com/v1/projects/dwk-gke-480015/zones/asia-south1-a/clusters/dwk-cluster].
+  To inspect the contents of your cluster, go to: https://console.cloud.google.com/kubernetes/workload_/gcloud/asia-south1-a/dwk-cluster?project=dwk-gke-480015
+  ```
+- Verify Managed Service for Prometheus is enabled 
+  ![Managed Service for Prometheus enabled](./images/02-prometheus-enabled-for-cluster.png)
+
+### 4. Deploy the project applications
+  - Trigger GitHub Actions deployment pipeline:  
+    [Todo Apps – Build, Publish & Deploy · Run #20050027243](https://github.com/arkb2023/devops-kubernetes/actions/runs/20050027243)  
+
+  - Verify Gateway external IP:
+    ```bash
+    kubectl  get gateway -A
     ```
     Output:
-    ```text
-    NAME                                CPU(cores)   MEMORY(bytes)
-    postgresql-db-0                     1m           30Mi
-    todo-app-dep-77b88987dc-tspwb       4m           44Mi
-    todo-backend-dep-54b4bdcf48-grq8t   3m           56Mi
-    NAME                                CPU(cores)   MEMORY(bytes)
-    postgresql-db-0                     1m           30Mi
-    todo-app-dep-77b88987dc-tspwb       50m          60Mi
-    todo-backend-dep-54b4bdcf48-grq8t   9m           59Mi
     ```
-  - Verified Stable deployment: No OOMKilled, No scheduling fails
-
-    ```bash
-    kubectl -n project get pods
-    ```
-    Output:
-    ```text
-    NAME                                 READY   STATUS      RESTARTS   AGE
-    postgresql-db-0                      1/1     Running     0          59s
-    todo-app-dep-77b88987dc-tspwb        1/1     Running     0          36m
-    todo-backend-dep-54b4bdcf48-grq8t    1/1     Running     0          66s
-    wiki-todo-generator-29419980-5tfds   0/1     Completed   0          74m
-    wiki-todo-generator-29420040-g7kzs   0/1     Completed   0          14m
+    NAMESPACE   NAME              CLASS                            ADDRESS          PROGRAMMED   AGE
+    project     project-gateway   gke-l7-global-external-managed   35.244.210.143   True         71m
     ```
 
-**Summary**
-| Component | Requests     | Limits       | Max Usage | Headroom |
-|-----------|--------------|--------------|-----------|----------|
-| Frontend  | 10m/64Mi     | 50m/128Mi    | 50m/60Mi  | 0%/53%   |
-| Backend   | 10m/64Mi     | 100m/128Mi   | 9m/59Mi   | 91%/54%  |
-| Postgres  | 50m/128Mi    | 250m/256Mi   | 1m/30Mi   | 99%/88%  |
+### 5. Generate log events for the todo application
+  - Access the application at `http://35.244.210.143` and create one or more new todos.  
+    ![Todo application accessed in browser](./images/04-application-accessed-from-browser.png)
+
+### 6. Verify Cloud Logging
+    
+  - Cloud Logging - Logs Explorer shows todo POST logs when a new todo is created:  
+    ```query
+    resource.type="k8s_container"
+    resource.labels.cluster_name="dwk-cluster"
+    resource.labels.namespace_name="project"
+    textPayload:"POST /todos"
+    ```
+    ![Todo POST request log in Cloud Logging](./images/01-post-request-success.png)
+
+### 7. Verify Prometheus metric scraping
+  - Cloud Monitoring - Metrics Explorer (PromQL mode) shows non‑zero values, confirming Prometheus metrics are being scraped:  
+    ```PromQL
+    sum by (namespace) (
+      rate(container_cpu_cfs_throttled_periods_total[5m])
+    )
+    ```
+    ![PromQL query returning non-zero values](./images/03-prometheus-query.png)
+
+### 8. Cleanup
+
+**Delete all project resources**
+```bash
+kubectl delete ns project
+```
+**Delete GKE cluster**
+```bash
+gcloud container clusters delete dwk-cluster \
+  --zone=asia-south1-a \
+  --quiet
+```
+
+---
