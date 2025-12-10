@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- namespace.yaml
+- persistentvolume.yaml
+- persistentvolumeclaim.yaml
+
+# Common resources
+- ../../apps/the-project/
+
+# Keep this after service creation (from this-project/*service.yaml)
+# Ingress routes for local deployment
+- todo-app-ingress.yaml
+- todo-backend-ingress.yaml

@@ -12,10 +12,9 @@ resources:
 # Ping-pong
 - ping-pong-deployment.yaml
 - ping-pong-service.yaml
-- ping-pong-route.yaml
+
 
 # Log-output  
 - log-output-deployment.yaml
 - log-output-service.yaml
 - log-output-configmap.yaml
-- log-output-route.yaml

@@ -59,3 +59,10 @@ echo ""
 echo "Metrics saved to: metrics-*.txt"
 echo "Screenshot: kubectl -n project top pods (final snapshot)"
 echo "Ready for Exercise 3.11 resource limits!"
+
+
+
+BASELINE usage Metrics Summary
+Frontend:     3.7m CPU, 45Mi Mem → requests: 10m/64Mi, limits: 50m/128Mi ✅
+Backend:      3.0m CPU, 56Mi Mem → requests: 10m/64Mi, limits: 100m/128Mi ✅
+Postgres:     1.0m CPU, 42Mi Mem → requests: 50m/128Mi, limits: 250m/256Mi ✅

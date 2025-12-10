@@ -112,8 +112,10 @@ async def startup():
                 logger.error("DB startup failed after all retries")
                 raise
         except Exception as e:
-            logger.error(f"Unexpected error during startup: {e}")
-            raise
+            #logger.error(f"Unexpected error during startup: {e}")
+            #raise
+            logger.warning(f"DB not ready yet, will retry: {e}")
+            await asyncio.sleep(retry_delay)
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -180,12 +182,26 @@ async def pingpong():
         logger.error(f"pingpong error: {e}")
         raise HTTPException(status_code=503, detail="Database operation failed")
 
-# Health check endpoint
-@app.get("/health")
-async def health():
+# # Health check endpoint
+# @app.get("/healthz")
+# async def healthz():
+#     try:
+#         async with sessionmaker(bind=engine)() as session:
+#             #result = await session.execute(select(PingPongCounter))
+#             #await session.close()
+#             await session.execute(text("SELECT 1"))
+#             logger.debug(f"healthz: db connection responsive")
+#         return {"status": "healthzy"}
+#     except Exception:
+#         raise HTTPException(503, "DB not ready")
+
+@app.get("/healthz")
+async def healthz():
     try:
         async with AsyncSessionLocal() as session:
-            result = await session.execute(text("SELECT 1"))
-            return {"status": "healthy", "db_connected": True}
-    except Exception:
-        raise HTTPException(status_code=503, detail="Database unhealthy")
+            await session.execute(text("SELECT 1"))
+            logger.debug("healthz: db connection responsive")
+        return {"status": "healthzy"}
+    except Exception as e:
+        logger.error(f"healthz DB error: {e!r}")
+        raise HTTPException(503, "DB not ready")

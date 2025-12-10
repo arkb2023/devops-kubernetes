@@ -15,19 +15,16 @@ spec:
     spec:
       containers:
         - name: ping-pong
-          image: arkb2023/ping-pong:3.5.3
+          image: arkb2023/ping-pong:4.1.5
           envFrom:
           - configMapRef:
               name: postgres-db-config
-          startupProbe:
-            httpGet:
-              path: /health
-              port: 3000
-            failureThreshold: 30       # Number of retries
-            periodSeconds: 10          # Interval between tries
           readinessProbe:
             httpGet:
-              path: /pings      # Use existing endpoint for health
+              path: /healthz
               port: 3000
-            initialDelaySeconds: 60
-            periodSeconds: 10
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3

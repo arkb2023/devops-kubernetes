@@ -1,110 +1,105 @@
-## Exercise 3.4.1. Kustomize `log-output` and `ping-pong` apps
+## Exercise 4.1. Readines probe
+**Instructions:**  
+Create a `ReadinessProbe` for the `Ping-pong` application. It should be ready when it has a connection to the database.
 
-Deploy `log-output` and `ping-pong` applications (with PostgreSQL backend) using a single kubectl command via Kustomize and deploy it to Google Kubernetes Engine.
+And another `ReadinessProbe` for `Log output` application. It should be ready when it can receive data from the `Ping-pong` application.
 
+Test that it works by applying everything but the database `statefulset`. The output of `kubectl get po` should look like this before the database is available:
+
+```text
+NAME                             READY   STATUS    RESTARTS   AGE
+logoutput-dep-7f49547cf4-ttj4f   1/2     Running   0          21s
+pingpong-dep-9b698d6fb-jdgq9     0/1     Running   0          21s
+```
+
+Adding the database should automatically move the `READY` states to `2/2` and `1/1` for `Log output` and `Ping-pong` respectively.
+
+---
 **Key Changes from Base**
-- Consolidated `apps/ping-pong-log-output/`: Single folder contains YAMLs for PostgreSQL + ping-pong + log-output apps  
-- `environments/gke/kustomization.yaml`: Top-level entry point references gateway + app bundle  
-- Namespace injection: `namespace: exercises` in app kustomization auto-applies to all resources  
 
-<pre>
-  devops-kubernetes/
-  ├── apps/ping-pong-log-output/          # Consolidated app manifests
-  │   ├── kustomization.yaml              # Links all app resources
-  │   ├── postgresql-statefulset.yaml     # PostgreSQL StatefulSet 
-  │   ├── postgresql-service.yaml         # PostgreSQL Service 
-  │   ├── postgresql-configmap.yaml       # PostgreSQL ConfigMap
-  │   ├── ping-pong-deployment.yaml       # ping-pong Deployment 
-  │   ├── ping-pong-service.yaml          # ping-pong Service
-  │   ├── ping-pong-route.yaml            # ping-pong HTTPRoute
-  │   ├── log-output-deployment.yaml      # log-output Deployment
-  │   ├── log-output-service.yaml         # log-output Service 
-  │   ├── log-output-configmap.yaml       # log-output ConfigMap
-  │   └── log-output-route.yaml           # log-output HTTPRoute 
-  └── environments/gke/                   # GKE-specific overlays
-      ├── kustomization.yaml              # TOP LEVEL entry point
-      ├── namespace.yaml                  # Namespace
-      └── gateway.yaml                    # Gateway API
-</pre>
+- [`ping-pong-deployment.yaml`](../apps/ping-pong-log-output/ping-pong-deployment.yaml):  
+  - Added a `readinessProbe` using `httpGet` on the `/healthz` endpoint to mark the Ping-pong pod Ready only when the PostgreSQL database is reachable.
 
-- Base versions used:  
-  - [Ping pong and Log output v3.4](https://github.com/arkb2023/devops-kubernetes/tree/3.4/ping-pong)  
-  
-***
+- [`log-output-deployment.yaml`](../apps/ping-pong-log-output/log-output-deployment.yaml):  
+  - Added a `readinessProbe` using `httpGet` on the `/healthz` endpoint for the main `log-reader` container so it is Ready as soon as the HTTP server is up.  
+  - Added a `ping-pong-fetcher` sidecar container with an `exec`-based `readinessProbe` that runs `curl` against the `Ping-pong` app `/pings` endpoint, making the Pod fully Ready only when Ping-pong is reachable.
+
+- Log output application [`reader.py`](../log_output/reader/reader.py):  
+  - Implemented a `/healthz` route that returns a simple status for the main container’s readiness check.
+
+- Ping-pong application [`pingpong.py`](./pingpong.py):  
+  - Implemented a `/healthz` route that executes a lightweight `SELECT 1` against PostgreSQL to drive the DB-backed readiness probe.
+
+- Base application:  
+  - [Ping pong and Log output v3.4](https://github.com/arkb2023/devops-kubernetes/tree/3.4/ping-pong)
 
 
 ### 1. **Directory and File Structure**
 <pre>
-├── apps
-│   ├── ping-pong-log-output
-│   │   ├── kustomization.yaml
-│   │   ├── log-output-configmap.yaml
-│   │   ├── log-output-deployment.yaml
-│   │   ├── log-output-ingress.yaml
-│   │   ├── log-output-route.yaml
-│   │   ├── log-output-service.yaml
-│   │   ├── ping-pong-deployment.yaml
-│   │   ├── ping-pong-ingress.yaml
-│   │   ├── ping-pong-route.yaml
-│   │   ├── ping-pong-service.yaml
-│   │   ├── postgresql-configmap.yaml
-│   │   ├── postgresql-init-script-configmap.yaml
-│   │   ├── postgresql-service.yaml
-│   │   └── postgresql-statefulset.yaml
-├── environments
-│   └── gke
-│       ├── gateway.yaml
-│       ├── kustomization.yaml
-│       └── namespace.yaml
-├── log_output
-│   ├── README.md
-│   ├── generator
-│   │   ├── Dockerfile
-│   │   └── generator.py
-│   └── reader
-│       ├── Dockerfile
-│       └── reader.py
-├── ping-pong
+environments/                                   # Multi-env overlays (local/GKE)
+├── exercises-gke                               # GKE environment specific overlays
+│   ├── gateway.yaml                            # Gateway API
+│   ├── kustomization.yaml                      # Top level kustomization entry point 
+│   ├── log-output-route.yaml                   # log-output HTTPRoute
+│   ├── namespace.yaml                          # Namespace
+│   └── ping-pong-route.yaml                    # ping-pong HTTPRoute
+├── exercises-local                             # Local k3d environment specific overlays
+│   ├── kustomization.yaml                      # Top level kustomization entry point
+│   ├── log-output-ingress.yaml                 # log-output ingress
+│   ├── namespace.yaml                          # Namespace
+│   └── ping-pong-ingress.yaml                  # Ping-pong ingress
+  
+apps/                                           # Shared base resources
+├── ping-pong-log-output                        # Consolidated app manifests + kustomization
+│   ├── kustomization.yaml                      # Base manifests for ping-pong + log-output
+│   ├── log-output-configmap.yaml               # log-output ConfigMap
+│   ├── log-output-deployment.yaml              # log-output Deployment
+│   ├── log-output-service.yaml                 # log-output Service 
+│   ├── ping-pong-deployment.yaml               # ping-pong Deployment 
+│   ├── ping-pong-service.yaml                  # ping-pong Service
+│   ├── postgresql-configmap.yaml               # PostgreSQL ConfigMap
+│   ├── postgresql-service.yaml                 # PostgreSQL Service
+│   └── postgresql-statefulset.yaml             # PostgreSQL StatefulSet 
+
+# Ping Pong application
+ping-pong/
+├── Dockerfile
+├── README.md
+└── pingpong.py
+
+# Log output application
+log_output/
+├── generator
 │   ├── Dockerfile
-│   ├── README.md
-│   └── pingpong.py
+│   └── generator.py
+└── reader
+    ├── Dockerfile
+    └── reader.py
 </pre>
 
+  
 ***
 
-### 2. Prerequisites (GCP/GKE)
-
-- **Google Cloud CLI** (`gcloud`) updated to 548.0.0
-- **kubectl** (Kubernetes CLI) with `gke-gcloud-auth-plugin`
-- **GCP Project**: `dwk-gke-480015` configured
-- **Cluster Creation**:
+### 2. Setup  
+- Docker  
+- k3d (K3s in Docker)  
+- kubectl (Kubernetes CLI)
+- Create Cluster 
   ```bash
-  gcloud container clusters create dwk-cluster \
-    --zone=asia-south1-a \
-    --cluster-version=1.32 \
-    --num-nodes=3 \
-    --machine-type=e2-medium \
-    --gateway-api=standard \
-    --disk-size=50 \
-    --enable-ip-alias
-  ```
-- **Fetch and configure Kubernetes cluster access credentials locally, enabling kubectl to authenticate and manage the specified GKE cluster**  
-  ```bash
-  gcloud container clusters get-credentials dwk-cluster --zone=asia-south1-a
-  ```
-- **Namespace creation:**
-  ```bash
-  kubectl create namespace exercises
+  k3d cluster create dwk-local --agents 2 --port 8081:80@loadbalancer
   ```
 
-### 3. **Deploy to Kubernetes**
+### 3. **Deploy Without Database (Phase 1)**  
 
-- **Deploy PostgreSQL**:  
+- **Temporarily disable PostgreSQL**:
+  - Comment out [`postgresql-statefulset.yaml`](../apps/ping-pong-log-output/postgresql-statefulset.yaml) in [`kustomization.yaml`](../apps/ping-pong-log-output/kustomization.yaml)  
+- **Deploy base resources**:
   ```bash
-  kubectl apply -k environments/gke
+  kustomize build environments/exercises-local/ | kubectl apply -f -
   ```
+  Output:
   ```text
-  namespace/exercises configured
+  namespace/exercises created
   configmap/log-output-config created
   configmap/postgres-db-config created
   service/log-output-svc created
@@ -112,120 +107,162 @@ Deploy `log-output` and `ping-pong` applications (with PostgreSQL backend) using
   service/postgresql-db-svc created
   deployment.apps/log-output-dep created
   deployment.apps/ping-pong-dep created
-  statefulset.apps/postgresql-db created
-  gateway.gateway.networking.k8s.io/log-ping-app-gateway created
-  httproute.gateway.networking.k8s.io/log-output-route created
-  httproute.gateway.networking.k8s.io/ping-pong-route created
+  ingress.networking.k8s.io/dwk-log-output-ingress created
+  ingress.networking.k8s.io/dwk-ping-pong-ingress created
   ```
 
-- **Verify all 3 pods Running**
-  ```bash
-  kubectl get pods -n exercises -w  
-  ```
-  *Output*
-  ```text
-  NAME                              READY   STATUS    RESTARTS   AGE
-  log-output-dep-86b9b9dd59-hsgsk   1/1     Running   0          13m
-  ping-pong-dep-88554df46-bfxgn     1/1     Running   0          2m45s
-  postgresql-db-0                   1/1     Running   0          13m
-  postgresql-db-1                   1/1     Running   0          13m
-  ```
+### 4. **Verify Pods Status (DB Not Available)**
+  **Expected READY states**: `log-output-dep: 1/2`, `ping-pong-dep: 0/1`  
 
+  - **Live Monitor**:  
+    ```bash
+    kubectl -n exercises get pods  -w  
+    ```
+    *Output*
+    ```text
+    NAME                              READY   STATUS    RESTARTS   AGE
+    log-output-dep-5cbc778798-6nbk9   0/2     Running   0          4s
+    ping-pong-dep-6967f55cd8-4dqzb    0/1     Running   0          4s
+    log-output-dep-5cbc778798-6nbk9   1/2     Running   0          35s
+    ```
+    Explanation:  
+    - At 4sec,  
+      - The `log-output` pod show `0/2 Running` as no readiness probe triggered yet since the `initialDelaySeconds` is set to `30sec`  
+      - The `ping-pong` pod show `0/1 Running` as no readiness probe triggered yet since the `initialDelaySeconds` is set to `30sec`
+    - At 35s,
+      - The `log-output` pod show `1/2 Running` as readiness probe was successful
+      - No update in `ping-pong` pod implying it still in `0/1 Running` state. The readiness probe triggered but as the database is unavailable it responds with `503` indicating not Ready.
 
-- **Wait for GKE Gateway controller to fully set up the external load balancer**
-  ```bash
-  kubectl get gateway log-ping-app-gateway -n exercises -w
-  ```
-  **Output**
-  ```text
-  NAME                   CLASS                            ADDRESS       PROGRAMMED   AGE
-  log-ping-app-gateway   gke-l7-global-external-managed   136.110.197.45   True         14m
-  ```
-  > Wait for `ADDRESS` to populate and `PROGRAMMED` to switch to True
+  - **Application Logs Confirm**:
+    - **Log-output** (`log-reader` container passes): 
+      ```bash
+      kubectl -n exercises logs log-output-dep-5cbc778798-6nbk9 -f
+      ```
+      Output:  
+      ```text
+      Defaulted container "log-reader" out of: log-reader, ping-pong-fetcher
+      INFO:     Started server process [7]
+      INFO:     Waiting for application startup.
+      2025-12-09 17:41:55,007 [log-output] DEBUG Lifespan startup: initializing resources
+      INFO:     Application startup complete.
+      INFO:     Uvicorn running on http://0.0.0.0:3000 (Press CTRL+C to quit)
+      INFO:     10.42.0.1:50168 - "GET /healthz HTTP/1.1" 200 OK
+      INFO:     10.42.0.1:39426 - "GET /healthz HTTP/1.1" 200 OK
+      INFO:     10.42.0.1:39440 - "GET /healthz HTTP/1.1" 200 OK
+      INFO:     10.42.0.1:46864 - "GET /healthz HTTP/1.1" 200 OK
+      INFO:     10.42.0.1:46868 - "GET /healthz HTTP/1.1" 200 OK
+      INFO:     10.42.0.1:59920 - "GET /healthz HTTP/1.1" 200 OK
+      ```
+    - **Ping-pong** (DB probe fails):
 
-- **Verify overall health of the configured entities**
-  ```bash
-  kubectl get all -n exercises
-  ```
-  ```text
-  NAME                                  READY   STATUS    RESTARTS   AGE
-  pod/log-output-dep-86b9b9dd59-hsgsk   1/1     Running   0          14m
-  pod/ping-pong-dep-88554df46-bfxgn     1/1     Running   0          3m40s
-  pod/postgresql-db-0                   1/1     Running   0          14m
-  pod/postgresql-db-1                   1/1     Running   0          14m
+      ```bash
+      kubectl -n exercises logs ping-pong-dep-6967f55cd8-4dqzb |grep GET |tail -10
+      ```
+      Output:  
+      ```text
+      INFO:     10.42.2.1:41394 - "GET /healthz HTTP/1.1" 503 Service Unavailable
+      INFO:     10.42.2.1:41404 - "GET /healthz HTTP/1.1" 503 Service Unavailable
+      INFO:     10.42.2.1:35242 - "GET /healthz HTTP/1.1" 503 Service Unavailable
+      INFO:     10.42.2.1:35252 - "GET /healthz HTTP/1.1" 503 Service Unavailable
+      INFO:     10.42.2.1:40886 - "GET /healthz HTTP/1.1" 503 Service Unavailable
+      INFO:     10.42.2.1:40890 - "GET /healthz HTTP/1.1" 503 Service Unavailable
+      INFO:     10.42.2.1:40892 - "GET /healthz HTTP/1.1" 503 Service Unavailable
+      INFO:     10.42.2.1:38704 - "GET /healthz HTTP/1.1" 503 Service Unavailable
+      INFO:     10.42.2.1:38708 - "GET /healthz HTTP/1.1" 503 Service Unavailable
+      INFO:     10.42.2.1:36752 - "GET /healthz HTTP/1.1" 503 Service Unavailable
+      ```
+  - **Final State**:     
+    ```bash
+    kubectl -n exercises get pods
+    ```
+    Output:  
+    ```text
+    NAME                              READY   STATUS    RESTARTS   AGE
+    log-output-dep-5cbc778798-6nbk9   1/2     Running   0          14m
+    ping-pong-dep-6967f55cd8-4dqzb    0/1     Running   0          14m
+    ```
+    > At 14mins, both applications continue to remain in same state as expected
+  
 
-  NAME                        TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
-  service/log-output-svc      ClusterIP   34.118.232.97    <none>        80/TCP     14m
-  service/ping-pong-svc       ClusterIP   34.118.239.158   <none>        3456/TCP   14m
-  service/postgresql-db-svc   ClusterIP   None             <none>        5432/TCP   14m
+### 5. **Automatic Recovery (DB Available)**
+  **Expected**: Pods flip from `0/1 + 1/2` to `1/1 + 2/2` automatically   
 
-  NAME                             READY   UP-TO-DATE   AVAILABLE   AGE
-  deployment.apps/log-output-dep   1/1     1            1           14m
-  deployment.apps/ping-pong-dep    1/1     1            1           14m
+  - **Deploy PostgreSQL**:
+    ```bash
+    kubectl -n exercises apply -f apps/ping-pong-log-output/postgresql-statefulset.yaml
+    ```
+    Output:  
+    ```text
+    statefulset.apps/postgresql-db created
+    ```
+  - Live Monitor the status as the `postgresql-db` pods initialize  
+    ```bash
+    kubectl -n exercises get pods  -w
+    ```
+    Output:  
+    ```text
+    NAME                              READY   STATUS    RESTARTS   AGE
+    log-output-dep-5cbc778798-6nbk9   1/2     Running   0          17m
+    ping-pong-dep-6967f55cd8-4dqzb    0/1     Running   0          17m
+    postgresql-db-0                   0/1     Pending   0          4s
+    postgresql-db-0                   0/1     Pending   0          4s
+    postgresql-db-0                   0/1     ContainerCreating   0          4s
+    postgresql-db-0                   0/1     Running             0          10s
+    postgresql-db-0                   1/1     Running             0          15s
+    postgresql-db-1                   0/1     Pending             0          0s
+    postgresql-db-1                   0/1     Pending             0          3s
+    postgresql-db-1                   0/1     ContainerCreating   0          3s
+    ping-pong-dep-6967f55cd8-4dqzb    1/1     Running             0          18m
+    postgresql-db-1                   0/1     Running             0          7s
+    postgresql-db-1                   1/1     Running             0          12s
+    ```
+  - **Final State**:     
+    ```bash
+    kubectl -n exercises get pods
+    ```
+    Output:  
+    ```text
+    NAME                              READY   STATUS    RESTARTS   AGE
+    log-output-dep-5cbc778798-6nbk9   2/2     Running   0          18m
+    ping-pong-dep-6967f55cd8-4dqzb    1/1     Running   0          18m
+    postgresql-db-0                   1/1     Running   0          41s
+    postgresql-db-1                   1/1     Running   0          26s
+    ```
+    > As expected,  
+    >   `log-output` status show `2/2`   
+    >   `ping-pong` status show `1/1`  
 
-  NAME                                        DESIRED   CURRENT   READY   AGE
-  replicaset.apps/log-output-dep-86b9b9dd59   1         1         1       14m
-  replicaset.apps/ping-pong-dep-864bbcd696    0         0         0       14m
-  replicaset.apps/ping-pong-dep-88554df46     1         1         1       3m41s
-
-  NAME                             READY   AGE
-  statefulset.apps/postgresql-db   2/2     14m
-  ```
-
-### 4. Validate
-
-  Use the Gateway Address (http://136.110.197.45/) to access the applications: 
-- **Test Log Output App response on `/` HTTP endpoint:**  
-
-  - Application returns the expected response  
-    ![caption](../log_output/images/01-log-output-response.png)  
-
-- **Test Ping Pong App response on `/pings` HTTP endpoint:**  
-
-  - Application returns the expected response    
-    ![caption](../log_output/images/02-ping-pong-pings-response.png)
-      
-
-- **Test Ping Pong App response on `/pingpong` HTTP endpoint:**  
-
-  - Application returns the expected response    
-    ![caption](../log_output/images/03-ping-pong-pingpong-response.png)  
-
+  - **Ping-pong Logs** (503 → 200 transition):  
+    ```bash
+    kubectl -n exercises logs ping-pong-dep-6967f55cd8-4dqzb -f
+    ```
+    Output:  
+    ```text
+    INFO:     10.42.2.1:39178 - "GET /healthz HTTP/1.1" 503 Service Unavailable
+    2025-12-09 18:00:02,129 [ping-pong] ERROR healthz DB error: gaierror(-2, 'Name or service not known')
+    INFO:     10.42.2.1:39188 - "GET /healthz HTTP/1.1" 503 Service Unavailable
+    2025-12-09 18:00:06,382 [ping-pong] DEBUG healthz: db connection responsive
+    INFO:     10.42.2.1:41242 - "GET /healthz HTTP/1.1" 200 OK
+    2025-12-09 18:00:11,321 [ping-pong] DEBUG healthz: db connection responsive
+    INFO:     10.42.2.1:41258 - "GET /healthz HTTP/1.1" 200 OK
+    2025-12-09 18:00:16,322 [ping-pong] DEBUG healthz: db connection responsive
+    INFO:     10.42.2.1:53232 - "GET /healthz HTTP/1.1" 200 OK
+    2025-12-09 18:00:21,321 [ping-pong] DEBUG healthz: db connection responsive
+    INFO:     10.42.2.1:53248 - "GET /healthz HTTP/1.1" 200 OK
+    2025-12-09 18:00:26,322 [ping-pong] DEBUG healthz: db connection responsive
+    INFO:     10.42.2.1:34926 - "GET /healthz HTTP/1.1" 200 OK
+    ```
 ### 6. **Cleanup**
 
-**Delete the provisioned resources**
+**Delete resources**
 ```bash
-kubectl delete -n exercises \
-    httproute ping-pong-route log-output-route
-kubectl delete -n exercises \
-    gateway log-ping-app-gateway
-kubectl delete -n exercises \
-  deployment ping-pong-dep log-output-dep
-  
-kubectl delete -n exercises \
-  statefulset postgresql-db
-
-kubectl delete -n exercises \
-  service ping-pong-svc log-output-svc postgresql-db-svc
-  
-kubectl delete -n exercises configmap log-output-config
-  
-# Wait for termination
-kubectl get all -n exercises
-
-kubectl delete pvc -n exercises --all  
 kubectl delete namespace exercises 
 ```
-<!--GKE Cluster Cleanup (Full Reset)
-# Get credentials off cluster
-kubectl config delete-context $(kubectl config current-context)
--->
-**Delete GKE cluster**
+**Delete Cluster**
 ```bash
-gcloud container clusters delete dwk-cluster \
-  --zone=asia-south1-a \
-  --quiet
+k3d cluster delete dwk-local
 ```
+
 <!--
 # Verify deletion
 gcloud container clusters list --project=dwk-gke-480015
@@ -241,12 +278,10 @@ kubectl get pvc -n exercises  # No resources
 kubectl get nodes  # Context error = clean
 
 ---
-
-
-
 check logs
 kubectl -n ${NAMESPACE} logs postgresql-db-1 -c postgresql-db
 kubectl -n ${NAMESPACE} logs postgresql-db-0 -c postgresql-db 
 # live logs
 kubectl -n ${NAMESPACE} logs -f postgresql-db-1
 -->
+

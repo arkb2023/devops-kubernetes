@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
 from datetime import datetime
 import uuid
@@ -58,3 +58,20 @@ env variable: MESSAGE={message}
 {pong_text}
 """
     return PlainTextResponse(response_text.strip())
+
+
+@app.get("/healthz")
+async def healthz():
+    return {"status": "ready"}
+
+# @app.get("/healthz")
+# async def healthz():
+#     try:
+#         #pingpong_url = os.getenv("PINGPONG_APP_URL", "http://localhost:3000/pings")
+#         #logger.debug(f"Root endpoint: fetching from {pingpong_url}")
+#         #resp = await httpx.get(pingpong_url)
+#         #resp.raise_for_status()
+#         return {"status": "ready"}
+#     except:
+#         #logger.error(f"healthz: {pingpong_url} unresponsive")
+#         raise HTTPException(503)
