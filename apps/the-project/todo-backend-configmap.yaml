@@ -18,8 +18,9 @@ data:
   # ----------------------------------------------------
   # POSTGRES_PASSWORD: testdbuserpassword
 
-  # fix: multibranch - fqdn with namespace 'project' wondwork
+  # fix: multibranch - fqdn with namespace 'project' workaround
   # DB_HOST: postgresql-db-svc.project.svc.cluster.local
+
   DB_HOST: postgresql-db-svc
   DB_PORT: "5432"
   LOG_LEVEL: DEBUG

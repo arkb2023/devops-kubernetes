@@ -9,7 +9,6 @@ resources:
 - postgresql-configmap.yaml
 - postgresql-service.yaml
 - postgresql-statefulset.yaml
-- postgresql-backup-cronjob.yaml
 
 # Todo Backend
 - todo-backend-service.yaml
@@ -21,5 +20,5 @@ resources:
 - todo-app-service.yaml
 - todo-app-deployment.yaml
 
-# ConfigMaps & CronJobs
+# CronJobs
 - cron_wiki_todo.yaml

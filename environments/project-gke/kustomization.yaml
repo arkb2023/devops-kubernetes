@@ -14,6 +14,8 @@ resources:
 - gateway.yaml
 - todo-app-route.yaml
 - todo-backend-route.yaml
+- postgresql-backup-cronjob.yaml
+- podmonitoring-todo-backend.yaml
 
 # GKE-specific image transforms
 images:

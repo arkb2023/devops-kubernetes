@@ -38,7 +38,7 @@ spec:
           - secretRef:
               name: postgres-db-secret
 
-          # healh check probe
+          # health check probe
           # -----------------------------------------------
           readinessProbe:
             httpGet:

@@ -30,7 +30,19 @@ spec:
                 secretKeyRef:
                   name: postgres-db-secret
                   key: POSTGRES_PASSWORD
+ 
+          # Resources: requests and limit
+          # -----------------------------
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+
   # Volume Claim
+  # ------------
   volumeClaimTemplates:
     - metadata:
         name: postgresql-db-disk
