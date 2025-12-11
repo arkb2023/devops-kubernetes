@@ -5,20 +5,21 @@ namespace: project
 
 resources:
 # PostgreSQL
-- postgres-db-secret.yaml
+- postgresql-dbsecret.yaml
 - postgresql-configmap.yaml
 - postgresql-service.yaml
 - postgresql-statefulset.yaml
 - postgresql-backup-cronjob.yaml
 
-# Todo App
-- todo-app-deployment.yaml
-- todo-app-service.yaml
-
 # Todo Backend
-- todo-backend-deployment.yaml
 - todo-backend-service.yaml
+- todo-backend-configmap.yaml
+- todo-backend-deployment.yaml
+
+# Todo App
+- todo-app-configmap.yaml
+- todo-app-service.yaml
+- todo-app-deployment.yaml
 
 # ConfigMaps & CronJobs
-- project-configmap.yaml
 - cron_wiki_todo.yaml

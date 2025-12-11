@@ -2,28 +2,29 @@ import logging
 import os
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse
 from contextlib import asynccontextmanager
-from .storage import init_db, engine
-from fastapi.middleware.cors import CORSMiddleware
-from .routes import todos
+
 
 # 1. CONFIGURE LOGGING FIRST
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FORMAT = "%(asctime)s [%(name)s] %(levelname)s %(message)s"
+logging.basicConfig(level=LOG_LEVEL, format=LOG_FORMAT)
 
-# SUPPRESS NOISE
+# Suppress noise from other libraries
 logging.getLogger("uvicorn.access").setLevel(logging.INFO)
 logging.getLogger("uvicorn.error").setLevel(logging.ERROR)
 logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
 logging.getLogger("sqlalchemy.orm").setLevel(logging.WARNING)
 logging.getLogger("sqlalchemy.dialects").setLevel(logging.ERROR)
-logging.basicConfig(level=LOG_LEVEL, format=LOG_FORMAT)
 logger = logging.getLogger("todo_backend")
-logger.setLevel(logging.INFO)
 
+# Local app code inherit the logging config set above
+from .storage import init_db, engine
+from .routes import todos
 
 
 # 2. CREATE APP FIRST
@@ -77,6 +78,7 @@ async def root():
 @app.get("/test")
 async def test():
     return {"status": "ok"}
+
 
 # Run with: uvicorn app.main:app --reload
 

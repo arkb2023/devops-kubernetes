@@ -1,22 +1,32 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 from ..models import TodoCreate, TodoResponse, TodoUpdate, MessageResponse
 from ..storage import (
     get_todos, create_todo, get_todo, update_todo, delete_todo, get_db_session
 )
 import logging
 import os
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+
 logger = logging.getLogger("todo_backend") 
+
 # This inherits main.py's configuration automatically:
 # Level: INFO (from main.py basicConfig)
 # Format: %(asctime)s [%(name)s] %(levelname)s %(message)s (from main.py)
 # Handlers: stdout (from main.py)
 
-logger.info(f"todos.py module loaded: LOG_LEVEL={LOG_LEVEL}")
-
 router = APIRouter(prefix="/todos", tags=["todos"])
+
+@router.get("/healthz")
+async def healthz(db: AsyncSession = Depends(get_db_session)):
+    try:
+        await db.execute(text("SELECT 1"))
+        logger.debug("healthz: todo backend db connection responsive")
+        return {"status": "healthzy"}
+    except Exception as e:
+        logger.error(f"healthz DB error: {e}")
+        raise HTTPException(503, "Todo DB not ready")
 
 @router.get("/", response_model=List[TodoResponse])
 async def get_todos_route(db: AsyncSession = Depends(get_db_session)):

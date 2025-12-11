@@ -1,76 +1,90 @@
 import os
 import asyncio
 import logging
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, AsyncEngine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select, and_
 from .models import Base, TodoDB, TodoCreate, TodoResponse, TodoUpdate
 
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 logger = logging.getLogger("todo_backend")
-logger.info(f"storage.py module loaded: LOG_LEVEL={LOG_LEVEL}")
+
+# Globals
+engine: AsyncEngine | None = None
+AsyncSessionLocal: sessionmaker | None = None
 
 def get_required_env(var_name: str, default: str = None) -> str:
     """Check if env var exists, log status, return value or default"""
     if var_name in os.environ:
         value = os.environ[var_name]
-        logger.info(f"✅ {var_name}={value}")
+        logger.info(f"{var_name}={value}")
         return value
     else:
-        logger.warning(f"❌ {var_name} MISSING - using default: {default}")
+        logger.warning(f"{var_name} MISSING - using default: {default}")
         return default or ""
 
-# Usage in your storage.py
-DB_HOST = get_required_env("DB_HOST", "undefined")
-DB_PORT = int(get_required_env("DB_PORT", "1111"))
-POSTGRES_DB = get_required_env("POSTGRES_DB", "undefined")
-POSTGRES_USER = get_required_env("POSTGRES_USER", "undefined")
-POSTGRES_PASSWORD = get_required_env("POSTGRES_PASSWORD")  # No default - will be empty!
+def build_db_url() -> str:
+    host = get_required_env("DB_HOST", "undefined")
+    port = int(get_required_env("DB_PORT", "1111"))
+    db = get_required_env("POSTGRES_DB", "undefined")
+    user = get_required_env("POSTGRES_USER", "undefined")
+    password = get_required_env("POSTGRES_PASSWORD", "")
+    url = f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{db}"
+    logger.info("storage.py: Final DB URL: %s", url)
+    return url
 
-logger.info(f"storage.py: Final DB URL:postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{DB_HOST}:{DB_PORT}/{POSTGRES_DB}")
-
-DATABASE_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{DB_HOST}:{DB_PORT}/{POSTGRES_DB}"
-
-logger.info(f"storage.py: DATABASE_URL {DATABASE_URL}")
-
-#engine = create_async_engine(DATABASE_URL, echo=True)
-engine = create_async_engine(DATABASE_URL, echo=False)
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,        # ✅ THIS SUPPRESSES ALL SQL LOGS
-    echo_pool=False,   # ✅ NO pool logs
-    future=True
-)
-logger.info(f"storage.py: engine: {engine}")
-#AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-# Disable SQLAlchemy Echo in Engine Creation (less log noise!)
-AsyncSessionLocal = sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autoflush=False,
-    autocommit=False
-)
 async def init_db():
-    """Create tables on startup."""
+    """Create tables on startup with graceful retries."""
+    global engine, AsyncSessionLocal
+
+    if engine is not None and AsyncSessionLocal is not None:
+        return
+
     # async with engine.begin() as conn:
     #     await conn.run_sync(Base.metadata.create_all)
     # logger.info("storage.py: Database tables created")
+    db_url = build_db_url()
+    engine = create_async_engine(
+        db_url,
+        echo=False,        # THIS SUPPRESSES ALL SQL LOGS
+        echo_pool=False,   # NO pool logs
+        future=True
+    )
+    AsyncSessionLocal = sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+        autocommit=False
+    )
 
-    max_retries = 30
+    max_retries = 3
+    retry_delay = 1
     for attempt in range(max_retries):
         try:
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
             logger.info("Database ready!")
-            break
+            return # success - normal startup
         except Exception as e:
-            logger.warning(f"Database Table Creation: Attempt {attempt+1}/30 failed: {e}")
-            if attempt == max_retries - 1:
-                raise
-            await asyncio.sleep(2)
+            # avoid f-strings in log calls so interpolation is lazy)
+            #logger.warning(f"Database Table Creation: Attempt {attempt+1}/{max_retries} failed: {e}")
+            logger.warning(
+                "Database Table Creation: Attempt %d/%d failed: %s",
+                attempt + 1, max_retries, e,
+            )
+            #if attempt == max_retries - 1:
+                # No raise after last attempt in startup context to avoid crash
+                # raise
+                # App continues to run;
+                # later readiness probe `/todos/healthz` returns 503 if db still didn't comeup
+            await asyncio.sleep(retry_delay)
+
+    # After all retries, log and give up, but DO NOT crash the app
+    logger.error("Database not ready after max retries; continuing without DB")
 
 async def get_db_session() -> AsyncSession:
+    if AsyncSessionLocal is None:
+        raise RuntimeError("AsyncSessionLocal is not initialized. Call init_db() first.")    
     async with AsyncSessionLocal() as session:
         try:
             yield session

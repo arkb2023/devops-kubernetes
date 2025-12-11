@@ -1,15 +1,37 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+
+# Common resources
+
+# Keep this after service creation (from this-project/*service.yaml)
 resources:
 - namespace.yaml
 - persistentvolume.yaml
 - persistentvolumeclaim.yaml
-
-# Common resources
 - ../../apps/the-project/
-
 # Keep this after service creation (from this-project/*service.yaml)
-# Ingress routes for local deployment
-- todo-app-ingress.yaml
-- todo-backend-ingress.yaml
+- todo-ingress.yaml
+
+# Local k3d -specific image transforms
+# Format:
+# Deployment yaml
+# > image: arkb2023/todo-backend:latest
+# kustomization.yaml
+# > name: arkb2023/todo-backend:latest
+# >  newName: arkb2023/todo-backend
+# >  newTag: 4.2.2
+# CMD:
+# format: 
+# <kustomization:name>         = <kustomization:newName> : <kustomization:newTag>
+# arkb2023/todo-backend:latest = arkb2023/todo-backend   : 4.2.2
+# Example:
+# kustomize edit set image arkb2023/todo-backend:latest=arkb2023/todo-backend:4.2.7
+# kustomize edit set image arkb2023/todo-app:latest=arkb2023/todo-app:4.2.1
+images:
+- name: arkb2023/todo-app:latest
+  newName: arkb2023/todo-app
+  newTag: 4.2.4
+- name: arkb2023/todo-backend:latest
+  newName: arkb2023/todo-backend
+  newTag: 4.2.7

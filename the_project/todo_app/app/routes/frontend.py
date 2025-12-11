@@ -43,6 +43,12 @@ async def lifespan(app: FastAPI):
 # Cache global is optional but good to explicitly declare
 cache: ImageCache | None = None  # type hint for clarity (Python 3.10+)
 
+
+@router.get("/healthz")
+async def healthz():
+    logger.debug("todo app health response OK!")
+    return {"status": "ready"}
+
 @router.get("/", response_class=HTMLResponse)
 async def main_page(request: Request):
   """Main page that serves the cached image with metadata info."""

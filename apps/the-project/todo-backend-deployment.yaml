@@ -20,14 +20,42 @@ spec:
       containers:
         - name: todo-backend-container
           #image: arkb2023/todo-backend:3.5.1  # image name/tag
-          image: todo-backend:latest  # Generic placeholder
+          image: arkb2023/todo-backend:latest  # Generic placeholder
           volumeMounts:
           - name: shared-image
             mountPath: /usr/src/app/files
           envFrom:
+
+          # For todo backend specific environment variables
+          # -----------------------------------------------
           - configMapRef:
-              name: project-config-env # Injects all vars from this ConfigMap
+              name: todo-backend-config
+
+          # For postgres credientials specific environment variables
+          # -----------------------------------------------
           - configMapRef:
               name: postgres-db-config
           - secretRef:
               name: postgres-db-secret
+
+          # healh check probe
+          # -----------------------------------------------
+          readinessProbe:
+            httpGet:
+              path: /todos/healthz
+              port: 3000  # FastAPI port
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+
+          # Resource requests and limits
+          # -----------------------------------------------
+          resources:
+            requests:
+              cpu: "250m"           # Minimum CPU needed
+              memory: "256Mi"       # Minimum memory needed
+            limits:
+              cpu: "500m"           # Maximum CPU allowed
+              memory: "512Mi"
