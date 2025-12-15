@@ -10,9 +10,10 @@ resources:
 - postgresql-configmap.yaml
 
 # Ping-pong
-- ping-pong-deployment.yaml
+#- ping-pong-deployment.yaml
+- ping-pong-rollout.yaml                # ARGO rollout
 - ping-pong-service.yaml
-
+- cpu-analysis-template.yaml
 
 # Log-output  
 - log-output-deployment.yaml

@@ -9,7 +9,7 @@ metadata:
 data:
   POSTGRES_USER: testdbuser
   POSTGRES_DB: testdb
-  # moved to apps/the-project/postgresql-dbsecret.yaml
+  # Defined in apps/the-project/postgresql-dbsecret.yaml
   # POSTGRES_PASSWORD: testdbuserpassword
   PGDATA: /data/pgdata
 

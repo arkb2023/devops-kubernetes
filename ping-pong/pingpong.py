@@ -1,6 +1,10 @@
 import os
 import logging
 import asyncio
+import math
+import random
+import threading
+import time
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -53,10 +57,34 @@ class PingPongCounter(Base):
 
 app = FastAPI()
 
+def cpu_burner():
+    """
+    Periodically burns CPU in a tight loop.
+    Adjust burn/rest durations to control how aggressive it is.
+    """
+    while True:
+        # Burn for 5 seconds
+        end = time.time() + 5
+        while time.time() < end:
+            # Some meaningless CPU work
+            math.sqrt(random.random())
+
+        # Rest for 5 seconds
+        time.sleep(5)
+
+
+
 #  PRODUCTION: Robust DB Self-Healing Startup
 @app.on_event("startup")
 async def startup():
     logger.info("Startup: Self-healing database initialization...")
+
+    # Start CPU burner if enabled
+    ENABLE_CPU_STRESS = os.getenv("ENABLE_CPU_STRESS", "false").lower() == "true"
+    if ENABLE_CPU_STRESS:
+        logger.warning("CPU stress mode ENABLED for this instance")
+        threading.Thread(target=cpu_burner, daemon=True).start()
+
     max_retries = 30  # 5 minutes max
     retry_delay = 10
     
