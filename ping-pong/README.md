@@ -30,7 +30,7 @@ Make sure that the application doesn't get updated, if the value is set too low.
 
 1. **Deploy stable baseline** - `arkb2023/ping-pong:4.1.5`, Measure Grafana CPU: **20-30 mCPU** steady state,  Set AnalysisTemplate threshold `result[0] < 200` *(With headroom)*.
 
-2. **CPU stress test** - Deploy `arkb2023/ping-pong:4.4.4` (`ENABLE_CPU_STRESS=true`): **Rollout aborts** (revision:5) as `cpu-usage > 200mCPU`, Auto-rollback to stable.
+2. **CPU stress test** - Deploy [`arkb2023/ping-pong:4.4.4`](https://hub.docker.com/repository/docker/arkb2023/ping-pong/tags/4.4.4) (`ENABLE_CPU_STRESS=true`): **Rollout aborts** (revision:5) as `cpu-usage > 200mCPU`, Auto-rollback to stable.
 
 3. **Threshold protection** - Set `result[0] < 10` (below baseline) → Deploy normal version: **Rollout blocked** (revision:7) despite healthy app.
 
@@ -142,7 +142,7 @@ log_output/
 
   - **Set AnalysisTemplate threshold**: `result[0] < 200` *(With headroom above baseline)* in [`cpu-analysis-template.yaml`](../apps/ping-pong-log-output/cpu-analysis-template.yaml)
 
-### 2. Deploy CPU-stressing version `arkb2023/ping-pong:4.4.4`
+### 2. Deploy CPU-stressing version arkb2023/ping-pong:4.4.4
   - Apply the Analysis Template
     ```bash
     kubectl -n exercises apply -f apps/ping-pong-log-output/cpu-analysis-template.yaml
