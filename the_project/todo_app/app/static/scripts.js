@@ -1,33 +1,45 @@
 // JavaScript to interact with todo-backend service
 
-//const backendURL = "http://127.0.0.1:8000";  // Replace "todo-backend-svc" with localhost for local testing
+// Use value injected by Jinja, fallback only if not set
+// DO NOT redeclare with const/let/var
+// const backend_api = window.backend_api || '/todos/';
+// assumes: <script>const backend_api = "{{ backend_api }}";</script> in HTML
 
 async function loadTodos() {
-  // TODO: Fetch todo list from todo-backend and update #todoList
-  // const res = await fetch('http://todo-backend-svc:8000/todos');  // Backend endpoint
-  const res = await fetch(`${backend_api}`);  // Backend endpoint
-            
-
+  // Fetch todo list from todo-backend
+  const res = await fetch(`${backend_api}`);
   const todos = await res.json();
-  const list = document.getElementById('todoList');
-  list.innerHTML = '';
+  
+  // Split into Todo and Done sections
+  const todoList = document.getElementById('todoList');
+  const doneList = document.getElementById('doneList');
+  
+  todoList.innerHTML = '';
+  doneList.innerHTML = '';
+  
   todos.forEach(todo => {
     const item = document.createElement('li');
-    item.textContent = todo.text;  // Assuming todo object has 'text' property
-    list.appendChild(item);
+    if (todo.completed) {
+      // Done section - simple text only
+      item.textContent = todo.text;
+      doneList.appendChild(item);
+    } else {
+      // Todo section - add Mark as Done button
+      item.innerHTML = `${todo.text} <button onclick="markDone(${todo.id})">Mark as Done</button>`;
+      todoList.appendChild(item);
+    }
   });
 }
 
 async function createTodo() {
-  // TODO: Post new todo to todo-backend and refresh list
+  // Post new todo to todo-backend and refresh list
   console.log("Create todo clicked");
   const input = document.getElementById('todoInput');
   if (input.value.length === 0 || input.value.length > 140) {
     alert('Todo must be 1-140 characters long');
     return;
   }
-  
-  //await fetch('http://todo-backend-svc:8000/todos', {
+
   await fetch(`${backend_api}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -37,5 +49,15 @@ async function createTodo() {
   await loadTodos();
 }
 
+async function markDone(todoId) {
+  await fetch(`${backend_api}${todoId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ completed: true }),
+  });
+  await loadTodos();  // Refresh lists
+}
+
+// Event listeners
 document.getElementById('createTodoButton').onclick = createTodo;
 window.onload = loadTodos;

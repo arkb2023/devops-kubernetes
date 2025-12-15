@@ -1,28 +1,38 @@
-## Exercise 4.2. The project, step 21
-**Instructions:**  
-Create the required probes and endpoint for The Project to ensure that it's working and connected to a database.  
+## Exercise 4.5. The project, step 22
 
-Test that the probe indeed works with a version without database access, for example by supplying a wrong database URL or credentials.  
+**Instructions:**  
+
+Speaking of updating. Our todo application could use "Done" field for todos that are already done. It should be a PUT request to /todos/<id>.
+
+After this exercise, your app could look something like this:  
+  ![caption](./images/00-reference.png)
 
 ---
 
 **Key Changes from Base**
 
-- [`todo-backend-deployment.yaml`](../apps/the-project/todo-backend-deployment.yaml):  
-  - Added a `readinessProbe` using `httpGet` on the `/healthz` endpoint to mark the Todo-backend pod Ready only when the PostgreSQL database is reachable.
+Key changes from the base version:
 
-- [`todo-app-deployment.yaml`](../apps/the-project/todo-app-deployment.yaml):  
-  - Added a `readinessProbe` using `httpGet` on the `/healthz` endpoint for the main `todo-app` container so it is Ready as soon as the HTTP server is up.  
-  - Added a `todo-backend-fetcher` sidecar container with an `exec`-based `readinessProbe` that runs `curl` against the `todo-backend` app `/todos/healthz` endpoint, making the Pod fully Ready only when `todo-backend` is reachable.
+- **[`todo_backend/app/models.py`](./todo_backend/app/models.py)**  
+  Added a `completed: bool` field to the `TodoDB` model and exposed it via `TodoResponse` / `TodoUpdate` so todos can store and update their done state.
 
-- Todo application (frontend) [`todo_app/app/routes/frontend.py`](./todo_app/app/routes/frontend.py):  
-  - Implemented a `/healthz` route that returns a simple status for the main container’s readiness check.  
+- **[`todo_backend/app/storage.py`](./todo_backend/app/storage.py)**  
+  Implemented `update_todo` get todo from the ORM `TodoDB` instance and modify the `completed` field correctly and refresh the ORM object before returning a `TodoResponse`.
 
-- Todo-backend application [`todo_backend/app/routes/todos.py`](./todo_backend/app/routes/todos.py):  
-  - Implemented a `/healthz` route that executes a lightweight `SELECT 1` against PostgreSQL to drive the DB-backed readiness probe.
+- **[`todo_backend/app/routes/todos.py`](./todo_backend/app/routes/todos.py)**  
+  Implemented the `update_todo_route` to handle `PUT /todos/{todo_id}` endpoint to support updating the `completed` status via the `TodoUpdate` model.
+
+- **[`todo_app/app/templates/index.html`](./todo_app/app/templates/index.html)**  
+  Split the list into separate **Todo** and **Done** sections (`<ul id="todoList">` and `<ul id="doneList">`) and updated the footer to show the course link “DevOps with Kubernetes 2025 University of Helsinki”.
+
+- **[`todo_app/app/static/scripts.js`](todo_app/app/static/scripts.js)**  
+  Enhanced the frontend logic to:
+  - Load todos from the backend and render them into **Todo** vs **Done** lists based on `completed`.  
+  - Add a **“Mark as Done”** button for active todos that sends a `PUT /todos/{id}` with `{ completed: true }`.  
+  - Refresh the view after creating or marking a todo as done.
 
 - Base application:  
-  - [Todo App and Todo Backend v3.12](https://github.com/arkb2023/devops-kubernetes/tree/3.12/the_project)
+  - [Todo App and Todo Backend v4.2](https://github.com/arkb2023/devops-kubernetes/tree/4.2/the_project)
 
 
 ### 1. **Directory and File Structure**
@@ -104,250 +114,96 @@ the_project/                                    # Project root
   ```bash
   k3d cluster create dwk-local --agents 2 --port 8081:80@loadbalancer
   ```
+- Build and Push Docker images
+  ```bash
+  docker build -t arkb2023/todo-app:4.5.3 ./the_project/todo_app/
+  docker push arkb2023/todo-app:4.5.3
+  docker build -t arkb2023/todo-backend:4.5.3 ./the_project/todo_backend/
+  docker push arkb2023/todo-backend:4.5.3
+  ```
+  > Docker Hub links: [`frontend`](https://hub.docker.com/repository/docker/arkb2023/todo-app/tags/4.5.3) and [`backend`](https://hub.docker.com/repository/docker/arkb2023/todo-backend/tags/4.5.3)
 
-### 3. **Deploy with wrong database URL**  
+- Update Kustomize images
+  ```bash
+  cd environments/project-local/ 
+  # frontend
+  kustomize edit set image arkb2023/todo-app:latest=arkb2023/todo-app:4.5.3
+  # backend
+  kustomize edit set image arkb2023/todo-backend:latest=arkb2023/todo-backend:4.5.3
+  cd -
+  ```
+  > Updates the project-local environment to use frontend and backend images tagged 4.5.3.
 
-**Test Case: Invalid PostgreSQL hostname triggers readiness probe failure**
+### 3. **Deploy**  
+- Deploy with Kustomize
+  ```bash
+  kustomize build environments/project-local | kubectl apply -f -
+  ```
 
-  - **Temporarily supply wrong PostgreSQL URL**:
-    - Edit ConfigMap [`todo-backend-configmap.yaml`](../apps/the-project/todo-backend-configmap.yaml):  
-    ```
-    DB_HOST: postgresql-db-svc-invalid  # CHANGED (invalid)
-    # was: postgresql-db-svc (valid)
-    ```
+- Deployment status:  
+  ```bash
+  kubectl -n project get pods
+  ```
+  Output:  
+  ```text
+  NAME                                 READY   STATUS      RESTARTS      AGE
+  postgresql-db-0                      1/1     Running     2 (12h ago)   4d
+  todo-app-dep-7b9fdc74c7-9zwsv        2/2     Running     0             28m
+  todo-backend-dep-5787d48fc5-tmzxn    1/1     Running     0             36m
+  wiki-todo-generator-29430060-hj867   0/1     Completed   0             134m
+  wiki-todo-generator-29430120-hvkht   0/1     Completed   0             73m
+  wiki-todo-generator-29430180-d6c6g   0/1     Completed   0             13m
+  devops-kubernetes [main]$ kubectl -n project get all
+  NAME                                     READY   STATUS      RESTARTS      AGE
+  pod/postgresql-db-0                      1/1     Running     2 (12h ago)   4d
+  pod/todo-app-dep-7b9fdc74c7-9zwsv        2/2     Running     0             28m
+  pod/todo-backend-dep-5787d48fc5-tmzxn    1/1     Running     0             36m
+  pod/wiki-todo-generator-29430060-hj867   0/1     Completed   0             134m
+  pod/wiki-todo-generator-29430120-hvkht   0/1     Completed   0             73m
+  pod/wiki-todo-generator-29430180-d6c6g   0/1     Completed   0             13m
 
-  - **Deploy resources**:
-    ```bash
-    kustomize build  environments/project-local | kubectl apply -f -
-    ```
-    Output:
-    ```text
-    namespace/project created
-    serviceaccount/postgres-backup-sa created
-    configmap/postgres-db-config created
-    configmap/todo-app-config created
-    configmap/todo-backend-config created
-    secret/postgres-db-secret created
-    service/postgresql-db-svc created
-    service/todo-app-svc created
-    service/todo-backend-svc created
-    persistentvolume/local-pv created
-    persistentvolumeclaim/local-pv-claim created
-    deployment.apps/todo-app-dep created
-    deployment.apps/todo-backend-dep created
-    statefulset.apps/postgresql-db created
-    cronjob.batch/postgres-backup created
-    cronjob.batch/wiki-todo-generator created
-    ingress.networking.k8s.io/todo-ingress created
-    ```
+  NAME                        TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
+  service/postgresql-db-svc   ClusterIP   None            <none>        5432/TCP   4d
+  service/todo-app-svc        ClusterIP   10.43.87.14     <none>        1234/TCP   4d
+  service/todo-backend-svc    ClusterIP   10.43.161.195   <none>        4567/TCP   4d
 
-  - **Config map shows wrong PostgreSQL URL**:
-    ```bash
-    kubectl -n project describe configmaps todo-backend-config
-    ```
-    Output:
-    ```text
-    Name:         todo-backend-config
-    Namespace:    project
-    Labels:       app=todo-backend
-    Annotations:  <none>
+  NAME                               READY   UP-TO-DATE   AVAILABLE   AGE
+  deployment.apps/todo-app-dep       1/1     1            1           4d
+  deployment.apps/todo-backend-dep   1/1     1            1           4d
 
-    Data
-    ====
-    DB_HOST:
-    ----
-    postgresql-db-svc-invalid     # INVALID HOSTNAME
+  NAME                                          DESIRED   CURRENT   READY   AGE
+  replicaset.apps/todo-app-dep-6c6cfc68b9       0         0         0       4d
+  replicaset.apps/todo-app-dep-6dcdf46669       0         0         0       56m
+  replicaset.apps/todo-app-dep-7b9fdc74c7       1         1         1       28m
+  replicaset.apps/todo-app-dep-7d6f78c757       0         0         0       81m
+  replicaset.apps/todo-backend-dep-557bd47cf7   0         0         0       81m
+  replicaset.apps/todo-backend-dep-5787d48fc5   1         1         1       36m
+  replicaset.apps/todo-backend-dep-5d9d44fc6    0         0         0       44m
+  replicaset.apps/todo-backend-dep-7b9d466c54   0         0         0       4d
 
-    DB_PORT:
-    ----
-    5432
-    ```
+  NAME                             READY   AGE
+  statefulset.apps/postgresql-db   1/1     4d
 
-### 4. **Verify Pods Status (DB Not Available)**  
-  **Expected READY states**: `todo-app-dep: 1/2`, `todo-backend-dep: 0/1`  
-  - **Live Monitor**:  
-    ```bash
-    kubectl -n project get pod -w  
-    ```
-    *Output*
-    ```text
-    NAME                                READY   STATUS              RESTARTS   AGE
-    postgresql-db-0                     0/1     ContainerCreating   0          6s
-    todo-app-dep-6c6cfc68b9-59bxp       0/2     Running             0          6s
-    todo-backend-dep-7b9d466c54-k8x79   0/1     Running             0          6s
-    postgresql-db-0                     1/1     Running             0          7s
-    todo-app-dep-6c6cfc68b9-59bxp       1/2     Running             0          10s
+  NAME                                SCHEDULE    TIMEZONE   SUSPEND   ACTIVE   LAST SCHEDULE   AGE
+  cronjob.batch/wiki-todo-generator   0 * * * *   <none>     False     0        15m             4d
 
-    ```
-    **Explanation**:  
-    - `todo-app-dep`: `1/2 Ready`
-      - Frontend healthy (`/healthz` works!)
-      - Backend-fetcher sidecar contiainer probe `curl` failed - NotReady  
-    - `todo-backend-dep`: `0/1 Ready`
-      - Backend NotReady (`/todos/healthz` returns 503 due to DB unreachable)
+  NAME                                     STATUS     COMPLETIONS   DURATION   AGE
+  job.batch/wiki-todo-generator-29430060   Complete   1/1           4s         134m
+  job.batch/wiki-todo-generator-29430120   Complete   1/1           3s         73m
+  job.batch/wiki-todo-generator-29430180   Complete   1/1           4s         13m
+  ```
 
-  - **Todo-App logs** (frontend healthy):
-    ```bash
-    kubectl -n project logs todo-app-dep-6c6cfc68b9-59bxp -f
-    ```
-    Output:  
-    ```text
-    Defaulted container "todo-app-container" out of: todo-app-container, todo-backend-fetcher
-    ENV: 2025-12-11 10:09:37,412 - app.cache - INFO - cache,py module loaded: LOG_LEVEL=DEBUG, LOG_FORMAT=ENV: %(asctime)s - %(name)s - %(levelname)s - %(message)s
-    ENV: 2025-12-11 10:09:37,412 - todo-app - INFO - frontend.py module loaded: LOG_LEVEL=DEBUG, LOG_FORMAT=ENV: %(asctime)s - %(name)s - %(levelname)s - %(message)s, backend_api=/todos/
-    INFO:     Started server process [7]
-    INFO:     Waiting for application startup.
-    ENV: 2025-12-11 10:09:37,413 - app.cache - INFO - Loading metadata from /usr/src/app/files/cache/cache_metadata.json
-    ENV: 2025-12-11 10:09:37,413 - app.cache - INFO - Loaded metadata: {'grace_period_used': False, 'access_count': 0, 'last_access_time': None, 'download_timestamp': 1765447111.3773715, 'image_access_count': 0}
-    ENV: 2025-12-11 10:09:37,413 - app.cache - INFO - ImageCache initialized with cache_dir: /usr/src/app/files/cache, ttl: 600s
-    ENV: 2025-12-11 10:09:37,413 - todo-app - INFO - Lifespan startup: Cache initialized with dir /usr/src/app/files/cache
-    ENV: 2025-12-11 10:09:37,413 - app.cache - INFO - Cache age: 666.0365164279938s, TTL: 600s, Expired: True
-    ENV: 2025-12-11 10:09:37,413 - todo-app - INFO - Lifespan startup: Cache is expired on startup, fetching new image
-    ENV: 2025-12-11 10:09:37,413 - app.cache - INFO - Fetching new image from external source
-    ENV: 2025-12-11 10:09:37,413 - app.cache - INFO - cache,py img_url: https://picsum.photos/500
-    ENV: 2025-12-11 10:09:43,728 - app.cache - INFO - Image fetched and cached successfully at 1765447783.7287328
-    ENV: 2025-12-11 10:09:43,729 - todo-app - INFO - Lifespan startup: Image fetched and cached successfully on startup
-    INFO:     Application startup complete.
-    INFO:     Uvicorn running on http://0.0.0.0:3000 (Press CTRL+C to quit)
-    ENV: 2025-12-11 10:09:46,386 - todo-app - DEBUG - todo app health response OK!
-    INFO:     10.42.0.1:39470 - "GET /healthz HTTP/1.1" 200 OK
-    ENV: 2025-12-11 10:09:51,385 - todo-app - DEBUG - todo app health response OK!
-    INFO:     10.42.0.1:39474 - "GET /healthz HTTP/1.1" 200 OK
-    ```
-    > *Key lines:*  
-    > INFO: Uvicorn running on http://0.0.0.0:3000  
-    > INFO: 10.42.0.1:39470 - "GET /healthz HTTP/1.1" 200 OK # <-- Frontend probe passes  
- 
-  - **Todo-backend logs** (DB address resolution failure as expected):
+### 4. Test Application Enhancements
 
-    ```bash
-    kubectl -n project logs todo-backend-dep-7b9d466c54-k8x79 -f
-    ```
-    Output:  
-    ```text
-    2025-12-11 10:09:37,715 [todo_backend] INFO DB_HOST=postgresql-db-svc-invalid
-    2025-12-11 10:09:37,715 [todo_backend] INFO DB_PORT=5432
-    2025-12-11 10:09:37,715 [todo_backend] INFO POSTGRES_DB=testdb
-    2025-12-11 10:09:37,715 [todo_backend] INFO POSTGRES_USER=testdbuser
-    2025-12-11 10:09:37,715 [todo_backend] INFO POSTGRES_PASSWORD=testdbuserpassword
-    2025-12-11 10:09:37,715 [todo_backend] INFO storage.py: Final DB URL: postgresql+asyncpg://testdbuser:testdbuserpassword@postgresql-db-svc-invalid:5432/testdb
-    2025-12-11 10:09:39,807 [todo_backend] WARNING Database Table Creation: Attempt 1/3 failed: [Errno -5] No address associated with hostname
-    2025-12-11 10:09:42,819 [todo_backend] WARNING Database Table Creation: Attempt 2/3 failed: [Errno -5] No address associated with hostname
-    2025-12-11 10:09:45,826 [todo_backend] WARNING Database Table Creation: Attempt 3/3 failed: [Errno -5] No address associated with hostname
-    2025-12-11 10:09:46,828 [todo_backend] ERROR Database not ready after max retries; continuing without DB
-    2025-12-11 10:09:53,406 [todo_backend] ERROR healthz DB error: [Errno -5] No address associated with hostname
-    2025-12-11 10:09:53,406 [todo_backend] WARNING todo_http_error
-    INFO:     10.42.0.1:51232 - "GET /todos/healthz HTTP/1.1" 503 Service Unavailable
-    2025-12-11 10:09:58,194 [todo_backend] ERROR healthz DB error: [Errno -5] No address associated with hostname
-    INFO:     10.42.0.1:39834 - "GET /todos/healthz HTTP/1.1" 503 Service Unavailable
-    2025-12-11 10:09:58,195 [todo_backend] WARNING todo_http_error
-    ```
+- Application shows a **“Mark as done”** button next to each todo in the **Todo** section.  
+- Clicking **“Mark as done”** moves the selected item from **Todo** to the **Done** section.  
 
-    > *Key lines:*  
-    > Final DB URL: postgresql+asyncpg://testdbuser:testdbuserpassword@postgresql-db-svc-invalid:5432/testdb  # <-- Invalid URL  
-    > WARNING Database Table Creation: Attempt 1/3 failed: [Errno -5] No address associated with hostname  
-    > ERROR healthz DB error: [Errno -5] No address associated with hostname  
-    > INFO: 10.42.0.1:51232 - "GET /todos/healthz HTTP/1.1" 503 Service Unavailable                           # <-- Probe fails  
+  ![caption](./images/01-Todo-Done-List.png)
 
-  - **Final State**:     
-    ```bash
-    kubectl -n project get pod
-    ```
-    Output:  
-    ```text
-    NAME                                READY   STATUS    RESTARTS   AGE
-    postgresql-db-0                     1/1     Running   0          2m28s
-    todo-app-dep-6c6cfc68b9-59bxp       1/2     Running   0          2m28s
-    todo-backend-dep-7b9d466c54-k8x79   0/1     Running   0          2m28s
-    ```
-    > Pods NotReady:  
-    > `todo-app-dep: 1/2` - NotReady due to Backend NotReady  
-    > `todo-backend-dep: 0/1` - NotReady due to DB unreachable  
+- Browser DevTools Network panel confirms a **PUT** request to `/todos/<id>` is sent when the **“Mark as done”** button is clicked.  
 
-### 5. **Automatic Recovery (DB Available)**
-  **Expected**: Pods flip from `0/1 + 1/2` to `1/1 + 2/2` automatically   
+  ![caption](./images/02-Put-Method.png)
 
-  - **Fix the PostgreSQL URL**:
-    - Edit ConfigMap [`todo-backend-configmap.yaml`](../apps/the-project/todo-backend-configmap.yaml) and set `DB_HOST: postgresql-db-svc` (valid)
-
-  - **Deploy fixed ConfigMap**:
-    ```bash
-    kubectl apply -f ../../apps/the-project/todo-backend-configmap.yaml
-    ```
-    Output:  
-    ```text
-    configmap/todo-backend-config configured
-    ```
-
-  - **Restart the backend deployment**
-    ```bash
-    kubectl -n project rollout restart deploy todo-backend-dep
-    ```
-    Output:  
-    ```text
-    deployment.apps/todo-backend-dep restarted
-    ```
-
-  - Live Monitor the status as the `todo-backend-dep` pods initialize  
-    ```bash
-    kubectl -n project get pod -w
-    ```
-    Output:  
-    ```text
-    NAME                                READY   STATUS    RESTARTS   AGE
-    postgresql-db-0                     1/1     Running   0          6m12s
-    todo-app-dep-6c6cfc68b9-59bxp       1/2     Running   0          6m12s
-    todo-backend-dep-7b9d466c54-k8x79   0/1     Running   0          6m12s
-    todo-backend-dep-7b4868bc88-xh9qs   0/1     Pending   0          0s
-    todo-backend-dep-7b4868bc88-xh9qs   0/1     Pending   0          0s
-    todo-backend-dep-7b4868bc88-xh9qs   0/1     ContainerCreating   0          0s
-    todo-backend-dep-7b4868bc88-xh9qs   0/1     Running             0          2s
-    todo-backend-dep-7b4868bc88-xh9qs   1/1     Running             0          15s
-    todo-backend-dep-7b9d466c54-k8x79   0/1     Terminating         0          7m1s
-    todo-app-dep-6c6cfc68b9-59bxp       2/2     Running             0          7m2s
-    todo-backend-dep-7b9d466c54-k8x79   0/1     Error               0          7m31s
-    todo-backend-dep-7b9d466c54-k8x79   0/1     Error               0          7m32s
-    todo-backend-dep-7b9d466c54-k8x79   0/1     Error               0          7m32s
-    ```
-
-  - **Final State**:     
-    ```bash
-    kubectl -n project get pod
-    ```
-    Output:  
-    ```text
-    NAME                                READY   STATUS    RESTARTS   AGE
-    postgresql-db-0                     1/1     Running   0          7m45s
-    todo-app-dep-6c6cfc68b9-59bxp       2/2     Running   0          7m45s
-    todo-backend-dep-7b4868bc88-xh9qs   1/1     Running   0          59s
-    ```
-    > As expected, after correcting DB_HOST the backend becomes 1/1 Ready, and the frontend pod transitions from 1/2 to 2/2 Ready once the backend health check starts returning 200.
-
-  - **Todo-backend Logs** (200 OK database response):  
-    ```bash
-    kubectl -n project logs todo-backend-dep-7b4868bc88-xh9qs -f
-    ```
-    Output:  
-    ```text
-    2025-12-11 10:16:24,395 [todo_backend] INFO DB_HOST=postgresql-db-svc
-    2025-12-11 10:16:24,396 [todo_backend] INFO DB_PORT=5432
-    2025-12-11 10:16:24,396 [todo_backend] INFO POSTGRES_DB=testdb
-    2025-12-11 10:16:24,396 [todo_backend] INFO POSTGRES_USER=testdbuser
-    2025-12-11 10:16:24,396 [todo_backend] INFO POSTGRES_PASSWORD=testdbuserpassword
-    2025-12-11 10:16:24,396 [todo_backend] INFO storage.py: Final DB URL: postgresql+asyncpg://testdbuser:testdbuserpassword@postgresql-db-svc:5432/testdb
-    2025-12-11 10:16:24,640 [todo_backend] INFO Database ready!
-    2025-12-11 10:16:37,863 [todo_backend] DEBUG healthz: todo backend db connection responsive
-    INFO:     10.42.0.1:54702 - "GET /todos/healthz HTTP/1.1" 200 OK
-    2025-12-11 10:16:38,633 [todo_backend] DEBUG healthz: todo backend db connection responsive
-    INFO:     10.42.0.111:37768 - "GET /todos/healthz HTTP/1.1" 200 OK
-    2025-12-11 10:16:42,860 [todo_backend] DEBUG healthz: todo backend db connection responsive
-    INFO:     10.42.0.1:50452 - "GET /todos/healthz HTTP/1.1" 200 OK
-    2025-12-11 10:16:43,646 [todo_backend] DEBUG healthz: todo backend db connection responsive
-    INFO:     10.42.0.111:46264 - "GET /todos/healthz HTTP/1.1" 200 OK
-    2025-12-11 10:16:47,860 [todo_backend] DEBUG healthz: todo backend db connection responsive
-    INFO:     10.42.0.1:50466 - "GET /todos/healthz HTTP/1.1" 200 OK
-    ```
-    > PostgreSQL reachability results in successful health probe responses ("GET /todos/healthz HTTP/1.1" 200 OK), confirming that the DB-backed readiness probe now gates pod readiness correctly
 
 ### 6. **Cleanup**
 
@@ -359,25 +215,3 @@ kubectl delete namespace project
 ```bash
 k3d cluster delete dwk-local
 ```
-
-<!--
-# Verify deletion
-gcloud container clusters list --project=dwk-gke-480015
-
-# Verification Commands
-# Check namespace empty
-kubectl get all -n exercises  # No resources
-
-# Check no lingering PVCs
-kubectl get pvc -n exercises  # No resources
-
-# Check cluster clean
-kubectl get nodes  # Context error = clean
-
----
-check logs
-kubectl -n ${NAMESPACE} logs postgresql-db-1 -c postgresql-db
-kubectl -n ${NAMESPACE} logs postgresql-db-0 -c postgresql-db 
-# live logs
-kubectl -n ${NAMESPACE} logs -f postgresql-db-1
--->

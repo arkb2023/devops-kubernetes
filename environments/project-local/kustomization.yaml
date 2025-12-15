@@ -5,12 +5,12 @@ kind: Kustomization
 # Common resources
 
 # Keep this after service creation (from this-project/*service.yaml)
+# Keep this after service creation (from this-project/*service.yaml)
 resources:
 - namespace.yaml
 - persistentvolume.yaml
 - persistentvolumeclaim.yaml
 - ../../apps/the-project/
-# Keep this after service creation (from this-project/*service.yaml)
 - todo-ingress.yaml
 
 # Local k3d -specific image transforms
@@ -31,7 +31,7 @@ resources:
 images:
 - name: arkb2023/todo-app:latest
   newName: arkb2023/todo-app
-  newTag: 4.2.4
+  newTag: 4.5.3
 - name: arkb2023/todo-backend:latest
   newName: arkb2023/todo-backend
-  newTag: 4.2.7
+  newTag: 4.5.3

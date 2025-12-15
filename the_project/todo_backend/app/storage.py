@@ -103,20 +103,25 @@ async def create_todo(db: AsyncSession, todo: TodoCreate) -> TodoResponse:
     await db.refresh(db_todo)
     return TodoResponse.model_validate(db_todo)
 
-async def get_todo(db: AsyncSession, todo_id: int) -> TodoResponse:
+async def get_todo(db: AsyncSession, todo_id: int) -> TodoDB:
+    """Return ORM TodoDB instance or raise."""
     result = await db.execute(select(TodoDB).where(TodoDB.id == todo_id))
     todo = result.scalar_one_or_none()
     if not todo:
         raise ValueError(f"Todo {todo_id} not found")
-    return TodoResponse.model_validate(todo)
+    return todo
 
 async def update_todo(db: AsyncSession, todo_id: int, update_data: TodoUpdate) -> TodoResponse:
+    # Get ORM instance
     todo = await get_todo(db, todo_id)
+
     update_dict = update_data.model_dump(exclude_unset=True)
     for field, value in update_dict.items():
         setattr(todo, field, value)
+
     await db.commit()
     await db.refresh(todo)
+
     return TodoResponse.model_validate(todo)
 
 async def delete_todo(db: AsyncSession, todo_id: int) -> bool:
