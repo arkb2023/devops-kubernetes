@@ -24,3 +24,5 @@ data:
   DB_HOST: postgresql-db-svc
   DB_PORT: "5432"
   LOG_LEVEL: DEBUG
+  NATS_URL: "nats://nats.default.svc.cluster.local:4222"
+  

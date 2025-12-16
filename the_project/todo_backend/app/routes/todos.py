@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, HTTPException, Depends, Request
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,6 +7,10 @@ from ..models import TodoCreate, TodoResponse, TodoUpdate, MessageResponse
 from ..storage import (
     get_todos, create_todo, get_todo, update_todo, delete_todo, get_db_session
 )
+from ..nats_client import (
+    publish_todo_event, NATS_SUBJECT_CREATED, NATS_SUBJECT_UPDATED
+)
+
 import logging
 import os
 
@@ -58,18 +63,14 @@ async def create_todo_route(
     result = await create_todo(db, todo)
     
     # Log SUCCESS
-    logger.info(
-        "todo_created_success",
-        extra={
-            "endpoint": "/todos",
-            "todo_id": result.id,
-            "text_preview": todo.text[:50] + "...",
-            "text_length": len(todo.text),
-            "status": "success"
-        }
-    )
+    logger.info(f"todo_created_success {result.model_dump()}")
+    # fire-and-forget publish; don't block request on failure
     
+    asyncio.create_task(
+        publish_todo_event(NATS_SUBJECT_CREATED, result.model_dump())
+    )    
     return result
+
 @router.get("/{todo_id}", response_model=TodoResponse)
 async def get_todo_route(todo_id: int, db: AsyncSession = Depends(get_db_session)):
     """Get single todo."""
@@ -82,7 +83,12 @@ async def get_todo_route(todo_id: int, db: AsyncSession = Depends(get_db_session
 async def update_todo_route(todo_id: int, update_data: TodoUpdate, db: AsyncSession = Depends(get_db_session)):
     """Update todo."""
     try:
-        return await update_todo(db, todo_id, update_data)
+        todo = await update_todo(db, todo_id, update_data)
+        # fire-and-forget publish; don't block request on failure
+        asyncio.create_task(
+            publish_todo_event(NATS_SUBJECT_UPDATED, todo.model_dump())
+        )
+        return todo
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

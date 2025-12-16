@@ -7,3 +7,4 @@ httpx
 sqlalchemy[asyncio]>=2.0
 asyncpg
 pydantic[email]
+nats-py

@@ -2,7 +2,7 @@
 services:
   db:
     image: postgres:latest
-    container_name: pg-docker
+    container_name: pg-container
     restart: unless-stopped
     environment:
       POSTGRES_USER: testdbuser
@@ -19,7 +19,7 @@ services:
 
   app:
     build: .                      # build in current directory (project root)
-    container_name: app-docker
+    container_name: backend-app-container
     restart: unless-stopped
     depends_on:
       db:
@@ -35,7 +35,8 @@ services:
       POSTGRES_USER: testdbuser
       POSTGRES_PASSWORD: testdbuserpassword
       LOG_LEVEL: INFO
-
+      # Point to existing k3d NATS via host port-forward
+      NATS_URL: "nats://host.docker.internal:4222"
 volumes:
   pgdata:
 

@@ -34,4 +34,4 @@ images:
   newTag: 4.5.3
 - name: arkb2023/todo-backend:latest
   newName: arkb2023/todo-backend
-  newTag: 4.5.3
+  newTag: 4.6.1

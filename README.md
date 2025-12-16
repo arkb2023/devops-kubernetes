@@ -49,3 +49,4 @@
 - [4.3.](https://github.com/arkb2023/devops-kubernetes/tree/4.3/monitoring)  
 - [4.4.](https://github.com/arkb2023/devops-kubernetes/tree/4.4/ping-pong)  
 - [4.5.](https://github.com/arkb2023/devops-kubernetes/tree/4.5/the_project)  
+- [4.6.](https://github.com/arkb2023/devops-kubernetes/tree/4.6/the_project)  
