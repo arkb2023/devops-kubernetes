@@ -207,6 +207,7 @@ the_project/                                    # Project root
 - Use **Mark as done** to trigger `PUT /todos/{todo_id}` and generate `todos.updated` events.
 
 All events should appear as formatted messages in the configured Slack channel, proving the full pipeline works end-to-end.
+> Note: The following Slack demo GIFs is large and may take a few seconds to load, especially on slower connections.
 
 ![caption](./images/slack-high.gif)
 
