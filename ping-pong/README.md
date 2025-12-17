@@ -378,3 +378,4 @@ k3d cluster delete dwk-local
 ```
 
 ---
+# Docker secrets ready Wed Dec 17 11:16:44 IST 2025
