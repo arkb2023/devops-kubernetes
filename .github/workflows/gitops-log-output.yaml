@@ -1,0 +1,50 @@
+name: GitOps Exercises (Log Output + Ping Pong)
+on:
+  push:
+    paths:
+    - 'log_output/**'
+    - 'ping-pong/**'
+    - 'apps/ping-pong-log-output/**'
+    - 'environments/exercises-local/**'
+    - '.github/workflows/gitops-log-output.yaml'
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    #1
+    - uses: actions/checkout@v4
+    #2
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    #3
+    - name: Build log-output reader
+      run: |
+        docker build -t arkb2023/log-reader:${GITHUB_SHA} log_output/reader
+        docker push arkb2023/log-reader:${GITHUB_SHA}
+    #4
+    - name: Build ping-pong
+      run: |
+        docker build -t arkb2023/ping-pong:${GITHUB_SHA} ping-pong
+        docker push arkb2023/ping-pong:${GITHUB_SHA}
+    
+    #5
+    - name: Setup Kustomize
+      uses: imranismail/setup-kustomize@v2
+    
+    #6
+    - name: Update kustomization.yaml
+      run: |
+        cd environments/exercises-local
+        kustomize edit set image arkb2023/log-reader:latest=arkb2023/log-reader:${GITHUB_SHA}
+        kustomize edit set image arkb2023/ping-pong:latest=arkb2023/ping-pong:${GITHUB_SHA}
+        cd -
+    
+    #7
+    - name: Commit kustomization changes
+      uses: EndBug/add-and-commit@v9
+      with:
+        add: 'environments/exercises-local/kustomization.yaml'
+        message: "Exercises GitOps ${GITHUB_SHA}"

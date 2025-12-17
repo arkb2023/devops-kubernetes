@@ -15,7 +15,8 @@ spec:
     spec:
       containers:
         - name: log-reader
-          image: arkb2023/log-reader:4.1.2
+          #image: arkb2023/log-reader:4.1.2
+          image: arkb2023/log-reader:latest # placeholder
           env:
             - name: MESSAGE
               valueFrom:
