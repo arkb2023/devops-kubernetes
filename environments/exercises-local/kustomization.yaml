@@ -10,7 +10,7 @@ resources:
 images:
 - name: arkb2023/log-reader:latest
   newName: arkb2023/log-reader
-  newTag: ee380e6e52bee7f83677d2c530b5dd9c61bd6d8b
+  newTag: 2b92dd5b30cf58fdbb7b2c0b9d7aed0174db767f
 - name: arkb2023/ping-pong:latest
   newName: arkb2023/ping-pong
-  newTag: ee380e6e52bee7f83677d2c530b5dd9c61bd6d8b
+  newTag: 2b92dd5b30cf58fdbb7b2c0b9d7aed0174db767f
