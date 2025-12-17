@@ -108,7 +108,7 @@ kubectl port-forward svc/argocd-server -n argocd 8080:80
   git add log_output/README.md
   git commit -m "4.7 GitOps test" && git push
   ```
-- GitHub Actions workflow is triggered, builds and pushes SHA-tagged images, updates `kustomization.yaml`, and commits the new image references.
+- GitHub Actions workflow [`Run #58287641941`](https://github.com/arkb2023/devops-kubernetes/actions/runs/20295309026/job/58287641941) is triggered, builds and pushes SHA-tagged images, updates `kustomization.yaml`, and commits the new image references.  
 
   ![caption](./images/13-github-gitops-workflow-run.png)
     
