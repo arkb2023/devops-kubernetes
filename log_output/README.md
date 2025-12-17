@@ -112,6 +112,8 @@ kubectl port-forward svc/argocd-server -n argocd 8080:80
 
   ![caption](./images/13-github-gitops-workflow-run.png)
     
+  ![caption](./images/10-github-kustomization-sha-image-update.png)
+
   ![caption](./images/14-github-gitops-workflow-run-EndBug-add-and-commit-v9-step.png)
 
 - ArgoCD detects the Git change, automatically syncs the `exercises-local` application, and rolls out the new versions of log-output and ping-pong (via Argo Rollouts canary for ping-pong) until the app is Healthy and Synced.
