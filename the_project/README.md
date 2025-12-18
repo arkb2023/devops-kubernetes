@@ -1,25 +1,23 @@
-## [Exercise 4.6. The project, step 23](https://courses.mooc.fi/org/uh-cs/courses/devops-with-kubernetes/chapter-5/messaging-systems)
+## [Exercise 4.8. The project, step 24](https://courses.mooc.fi/org/uh-cs/courses/devops-with-kubernetes/chapter-5/gitops)
 
 **Instructions:**  
-  ![caption](./images/4.6-question.png)
+
+Move the project to use GitOps so that when you commit to the repository, the application is automatically updated. In this exercise, it is enough that the main branch is deployed to cluster.
 
 ---
 
 **Key Changes from Base**
+- [`.github/workflows/gitops-project.yaml`](../.github/workflows/gitops-project.yaml): Defines GitHub Actions workflow that builds and pushes new Docker images for the project applications and updates Kustomize image references automatically on relevant path changes.
+- [`environments/project-local/kustomization.yaml`](../environments/project-local/kustomization.yaml):  Updated the Kustomize configuration for project so images are driven by placeholders that the workflow replaces with immutable SHA tags, instead of manually managed version tags.
+- Base application: [Todo App and Todo Backend v4.6](https://github.com/arkb2023/devops-kubernetes/tree/4.6/the_project)
 
-- [`environments/project-local/nats-dep.yaml`](../environments/project-local/nats-dep.yaml) – Defines NATS server deployment  
-- [`broadcaster/broadcaster.py`](./broadcaster/broadcaster.py) – Broadcaster service that consumes todo events from NATS and forwards them to Slack via an incoming webhook.  
-- [`broadcaster/Dockerfile`](./broadcaster/Dockerfile) – Dockerfile to containerize broadcaster application  
-- [`todo_backend/app/routes/todos.py`](./todo_backend/app/routes/todos.py) – `POST /todos` and `PUT /todos/{todo_id}` handlers updated to publish todo events to NATS after successful DB commits.  
-- [`todo_backend/app/nats_client.py`](./todo_backend/app/nats_client.py) – Helper module for serializing todo payloads and publishing events to NATS using the configured `NATS_URL`.
-- [`apps/the-project/broadcaster-deployment.yaml`](../apps/the-project/broadcaster-deployment.yaml) – Defines the broadcaster deployment with `replicas: 6` and environment wiring to NATS and Slack.
-
-- Base application:  
-  - [Todo App and Todo Backend v4.5](https://github.com/arkb2023/devops-kubernetes/tree/4.5/the_project)
-
+---
 
 **Directory and File Structure**
 <pre>
+.github/                                        # github workflows root folder
+└── workflows
+    └── gitops-project.yaml                     # GitOps workflow for project (todo (frontend) + todo backend)
 
 environments/                                   # Multi-env overlays (k3dlocal/GKE)
 ├── project-gke                                 # GKE environment specific overlays
@@ -83,142 +81,197 @@ the_project/                                    # Project root
     │   │   └── todos.py
     │   └── storage.py
     └── requirements.txt
-
-# Deployment flow:
-# kustomize build environments/project-local | kubectl apply -f -
-# kustomize build environments/project-gke | kubectl apply -f -
-
 </pre>
-
   
 ***
 
-**Setup**  
+**Base Setup**  
 - Docker  
 - k3d (K3s in Docker)  
 - kubectl (Kubernetes CLI)
-- NATS 0.1.6
 - Create Cluster 
   ```bash
   k3d cluster create dwk-local --agents 2 --port 8081:80@loadbalancer
   ```
-- Build and Push Docker images
+- Install ArgoCD in the cluster
   ```bash
-  # Todo backend application
-  docker build -t arkb2023/todo-backend:4.6.1 ./the_project/todo_backend/
-  docker push arkb2023/todo-backend:4.6.1
+  kubectl create namespace argocd
+  kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+  ```
+- Port-forward ArgoCD server to localhost
+  ```bash
+  kubectl port-forward svc/argocd-server -n argocd 8080:80
+  ```
+- Get admin password:  
+  ```bash
+  kubectl get secret argocd-initial-admin-secret -n argocd \
+    -o jsonpath="{.data.password}" | base64 -d
+  ```
+- Access ArgoCD web UI at: `http://localhost:8080/applications`, use `admin` as username and the password retrieved above.
+---
 
-  # Broadcaster application
-  docker build -t arkb2023/broadcaster:4.6.1 ./the_project/broadcaster/
-  docker push arkb2023/broadcaster:4.6.1
+### 1. Setup a new application for project in ArgoCD
 
-  ```
-  > Docker Hub links: [`backend`](https://hub.docker.com/repository/docker/arkb2023/todo-backend/tags/4.6.1) and [`broadcaster`](https://hub.docker.com/repository/docker/arkb2023/broadcaster/tags/4.6.1)  
+  - Create a new ArgoCD Application pointing to:  
+    | Field            | Value                                              |
+    |------------------|----------------------------------------------------|
+    | Application Name | project-local                                      |
+    | Project          | default                                            |
+    | SYNC POLICY      | Manual (change to Automatic after first sync)      |
+    | Repository URL   | https://github.com/arkb2023/devops-kubernetes      |
+    | Revision         | main                                               |
+    | Path             | environments/project-local                         |
+    | Cluster          | https://kubernetes.default.svc                     |
+    | Namespace        | project                                            |
 
-- Update Kustomize image for `backend`
-  ```bash
-  cd environments/project-local/ 
-  kustomize edit set image arkb2023/todo-backend:latest=arkb2023/todo-backend:4.6.1
-  cd -
-  ```
-  > Updates the project-local environment to use backend images tagged 4.6.1.
-- Edit [`apps/the-project/broadcaster-deployment.yaml`]( ../apps/the-project/broadcaster-deployment.yaml) and update `broadcaster` image  
-  ```yaml
-  image: arkb2023/broadcaster:4.6.1
-  ```
-- Set Slack webhook in environment:
-  ```bash
-  export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/.../.../..."
-  ```
-- Create a Kubernetes Secret from the Slack webhook environment variable:  
-  ```bash
-  kubectl -n project create secret generic slack-webhook-secret \
-    --from-literal=webhook_url=${SLACK_WEBHOOK_URL}
-  ```
-  > `slack-webhook-secret` is referenced via `secretKeyRef` in [`apps/the-project/broadcaster-deployment.yaml`](../apps/the-project/broadcaster-deployment.yaml).
+  - Application created in ArgoCD:
 
-- Deploy the Todo application stack:  
+    ![caption](./images/01-application-pre-sync-summary.png)
+
+  - Application details before first sync:  
+
+    ![caption](./images/02-application-pre-sync-details.png)
+
+  - Sync the application manually for the first time via ArgoCD Web UI by clicking **SYNC** button and confirming the sync.  
+
+    ![caption](./images/04-application-post-sync-summary.png)  
+
+  - Application details after first sync:
+
+    ![caption](./images/03-application-post-sync-details.png)
+
+  - Enable automatic sync for the application:  
+
+    ![caption](./images/05-application-enable-auto-sync.png)
+
+---
+
+### 2: GitHub Actions workflow for GitOps
+- Add the GitOps workflow: [`.github/workflows/gitops-project.yaml`](../.github/workflows/gitops-project.yaml).
+- The workflow is triggered on pushes to `main` affecting the `the_project/`, `apps/the-project/`, or `environments/project-local/` paths (as defined in the `paths:` filter)  
+- The workflow builds and pushes new `todo-app` and `todo-backend` images, runs `kustomize edit set image` to update `environments/project-local/kustomization.yaml`, and commits the change back to the `main` branch.
+
+---
+### 3: Test End-to-end GitOps: push → Actions → Argo auto-sync  
+- Make a code change in `the_project/` folder, commit and push to `main` branch:  
+
+  *Example:*  
+  Update following files to scale up deployment pods from 1 to 2 replicas each for:  
+
+  - Postgresql: [`postgresql-statefulset.yaml`](../apps/the-project/postgresql-statefulset.yaml)  
+  - Todo backend:     [`todo-backend-deployment.yaml`](../apps/the-project/todo-backend-deployment.yaml)  
+  - Todo app (frontend): [`todo-app-deployment.yaml`](../apps/the-project/todo-app-deployment.yaml)  
+
   ```bash
-  kustomize build environments/project-local | kubectl apply -f -
-  ```
-- Todo Application deployments `READY` and `AVAILABLE`  
-  ```bash
-  kubectl -n project get deployments
+  git add .  
+  git commit -m "Test01: deployment scaled up - 2 pods each"
+  git push origin main
   ```
   Output:  
-  ```text
-  NAME               READY   UP-TO-DATE   AVAILABLE   AGE
-  todo-app-dep       1/1     1            1           5d4h
-  todo-backend-dep   1/1     1            1           5d4h
-  ```  
-- Confirm NATS server is initialized and accepting subscriptions:  
-  ```bash
-  nats --server nats://127.0.0.1:4222 sub 'todos.>'
   ```
-  Output:  
-  ```text
-  22:46:46 Subscribing on todos.>
+  Enumerating objects: 18, done.
+  Counting objects: 100% (18/18), done.
+  Delta compression using up to 22 threads
+  Compressing objects: 100% (11/11), done.
+  Writing objects: 100% (11/11), 125.06 KiB | 590.00 KiB/s, done.
+  Total 11 (delta 7), reused 0 (delta 0), pack-reused 0
+  remote: Resolving deltas: 100% (7/7), completed with 6 local objects.
+  To github.com:arkb2023/devops-kubernetes.git
+    e8c013d..cd7733e  main -> main
   ```
+  > CommitID: `cd7733e` for reference in the next steps.
 
-### 1. Deploy the Broadcaster Application
-- Apply the Deployment manifest for the broadcaster:  
-  ```bash
-  kubectl apply -f apps/the-project/broadcaster-deployment.yaml
-  ```
-- Verify the broadcaster Deployment has `6` replicas `READY` and `AVAILABLE`:  
-  ```bash
-  kubectl -n project get deployments
-  ```
-  Output:  
-  ```text
-  NAME               READY   UP-TO-DATE   AVAILABLE   AGE
-  broadcaster-dep    6/6     6            6           4s
-  todo-app-dep       1/1     1            1           5d4h
-  todo-backend-dep   1/1     1            1           5d4h
-  ```
+- GitHub Actions workflow is triggered: [Run #58384901408](https://github.com/arkb2023/devops-kubernetes/actions/runs/20323843484/job/58384901408)
 
-- Confirm all pods are `READY`  
+- ArgoCD detects the Git change, automatically syncs the `project-local` application to  commitID `cd7733e` and updates the Deployment specs to use 2 replicas for PostgreSQL, todo-backend, and todo-app:  
+
+  ![caption](./images/20-argocd-developer-commitid-synced.png)
+
+- GitHub Actions workflow details:
+
+  - High-level view (commitID `cd7733e`):
+    ![caption](./images/11-github-workflow-highlevel-view-run-success.png)  
+  
+  - Step-level view  
+    ![caption](./images/12-github-workflow-steplevel-view-success.png)  
+
+  - Kustomize updated with SHA image references:  
+    ![caption](./images/13-github-workflow-kustomize-set-image-with-sha.png)  
+
+  - Git commit, pushed to main branch from gitops workflow:
+    ![caption](./images/15-github-workflow-EndBug-add-and-commit-v9-step.png)
+    > Note the commit message and commit sha:  
+    >   Using "Project GitOps cd7733e49c7ff25739f1bdd11eaeea5471739fe7" as commit message.
+    >   commit_sha: `e006308`
+
+  - Corresponding to the gitops commit above, [`environments/project-local/kustomization.yaml`](https://github.com/arkb2023/devops-kubernetes/commit/e006308cf2c9add9c0aff62abae93599c7f2a204#diff-74ab6b5b77555130d39c5cc0d6c0228be210ab5e3e49a7413450ea7848b53633) updated with new SHA image references:
+    ![caption](./images/14-kustomize-updated-with-sha.png)
+
+- ArgoCD detects this Git change from Gitops workflow, automatically syncs the `project-local` application to commitID `e006308` and updates the application to use the new images:
+   
+  ![caption](./images/22-argocd-history-rollback-view.png)
+    
+- Application fully synced and healthy state with two replicas per deployment and new images:
+
+  ![caption](./images/21-argocd--synced-view.png)
+
+---
+
+### 4. Validation
+- Verify in the cluster that the Deployments and StatefulSet have 2 replicas each:  
   ```bash
-  kubectl -n project get pods
+  kubectl  -n project get pods
   ```
   Output:  
   ```text
   NAME                                 READY   STATUS      RESTARTS      AGE
-  broadcaster-dep-d754bcc8-8l6v6       1/1     Running     0             4m55s
-  broadcaster-dep-d754bcc8-phk69       1/1     Running     0             4m55s
-  broadcaster-dep-d754bcc8-vnfk5       1/1     Running     0             4m55s
-  broadcaster-dep-d754bcc8-wcvfk       1/1     Running     0             4m55s
-  broadcaster-dep-d754bcc8-xjmkp       1/1     Running     0             4m55s
-  broadcaster-dep-d754bcc8-znwml       1/1     Running     0             4m55s
-  postgresql-db-0                      1/1     Running     3 (14h ago)   5d4h
-  todo-app-dep-7b9fdc74c7-9zwsv        2/2     Running     2 (14h ago)   27h
-  todo-backend-dep-b5fddbc8-qzftd      1/1     Running     0             3h7m
-  wiki-todo-generator-29431680-m7chz   0/1     Completed   0             148m
-  wiki-todo-generator-29431740-mpcvn   0/1     Completed   0             87m
-  wiki-todo-generator-29431800-cn9kl   0/1     Completed   0             27m
+  broadcaster-dep-d754bcc8-8l6v6       1/1     Running     1 (28h ago)   35h
+  broadcaster-dep-d754bcc8-phk69       1/1     Running     1 (28h ago)   35h
+  broadcaster-dep-d754bcc8-vnfk5       1/1     Running     1 (28h ago)   35h
+  broadcaster-dep-d754bcc8-wcvfk       1/1     Running     1 (28h ago)   35h
+  broadcaster-dep-d754bcc8-xjmkp       1/1     Running     1 (28h ago)   35h
+  broadcaster-dep-d754bcc8-znwml       1/1     Running     1 (28h ago)   35h
+  postgresql-db-0                      1/1     Running     4 (28h ago)   6d15h
+  postgresql-db-1                      1/1     Running     0             3h46m
+  todo-app-dep-774d9556c-2ksjb         2/2     Running     0             3h39m
+  todo-app-dep-774d9556c-g86j4         2/2     Running     0             3h39m
+  todo-backend-dep-6577bf8f76-fp2sv    1/1     Running     0             3h39m
+  todo-backend-dep-6577bf8f76-szh4x    1/1     Running     0             3h39m
+  wiki-todo-generator-29433840-l9wnq   0/1     Completed   0             113m
+  wiki-todo-generator-29433900-khb6b   0/1     Completed   0             67m
+  wiki-todo-generator-29433960-lh8vg   0/1     Completed   0             6m38s
   ```
 
----
+- Verify deployments status:
+  ```bash
+  kubectl get deploy -n project
+  ```
+  Output:  
+  ```text
+  NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+  broadcaster-dep    6/6     6            6           35h
+  todo-app-dep       2/2     2            2           6d15h
+  todo-backend-dep   2/2     2            2           6d15h
+  ```
 
-### 2. Test `backend` → `NATS` → `Broadcaster` → `Slack` integration
+- Verify statefulset status:
+  ```bash
+  kubectl get statefulset -n project
+  ```
+  Output:  
+  ```text
+  NAME            READY   AGE
+  postgresql-db   2/2     6d15h
+  ```
+- Access the Todo App at: `http://localhost:8081`, verify functionality works with the scaled deployments.
 
-- Access the todo frontend in the browser.  
-- Use **Create Todo** to trigger `POST /todos` and generate `todos.created` events.  
-- Use **Mark as done** to trigger `PUT /todos/{todo_id}` and generate `todos.updated` events.
-
-All events should appear as formatted messages in the configured Slack channel, proving the full pipeline works end-to-end.
-> Note: The following [Slack demo GIF](https://github.com/arkb2023/devops-kubernetes/blob/main/the_project/images/slack-high.gif) is large and may take a few seconds to load, especially on slower connections.
-
-![Slack demo](https://github.com/arkb2023/devops-kubernetes/blob/main/the_project/images/slack-high.gif)
+  ![caption](./images/31-application-works.png)
 
 ---
 
 **Cleanup**
-
-```bash
-# Delete resources
-kubectl delete namespace project 
-
-# Delete Cluster
-k3d cluster delete dwk-local
-```
+- Delete ArgoCD application `project-local` via ArgoCD Web UI.
+- Delete k3d cluster:  
+  ```bash
+  k3d cluster delete dwk-local
+  ```
