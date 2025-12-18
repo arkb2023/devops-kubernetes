@@ -31,7 +31,7 @@ resources:
 images:
 - name: arkb2023/todo-app:latest
   newName: arkb2023/todo-app
-  newTag: cd7733e49c7ff25739f1bdd11eaeea5471739fe7
+  newTag: 0f71be809aa25ea04e67059524ce4b0da1b9f91c
 - name: arkb2023/todo-backend:latest
   newName: arkb2023/todo-backend
-  newTag: cd7733e49c7ff25739f1bdd11eaeea5471739fe7
+  newTag: 0f71be809aa25ea04e67059524ce4b0da1b9f91c
