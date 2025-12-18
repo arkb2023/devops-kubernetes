@@ -110,6 +110,42 @@ the_project/                                    # Project root
 - Access ArgoCD web UI at: `http://localhost:8080/applications`, use `admin` as username and the password retrieved above.
 ---
 
+export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/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"
+export NATS_URL="nats://127.0.0.1:4222"
+
+# Create namespace + secrets
+kubectl create ns staging
+kubectl create secret generic slack-webhook-secret \
+  --from-literal=webhook_url=$SLACK_WEBHOOK_URL \
+  -n staging
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ### 1. Setup a new application for project in ArgoCD
 
   - Create a new ArgoCD Application pointing to:  

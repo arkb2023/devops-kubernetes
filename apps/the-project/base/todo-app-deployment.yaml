@@ -1,10 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: project
   name: todo-app-dep
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: todo-app
@@ -24,6 +23,11 @@ spec:
         - name: todo-app-container
           #image: arkb2023/todo-app:3.5.1  # image name/tag
           image: arkb2023/todo-app:latest  # Generic placeholder
+          env:
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace  # staging/production
           envFrom:
           - configMapRef:
               name: todo-app-config
@@ -62,12 +66,17 @@ spec:
           volumeMounts:
           - name: shared-image
             mountPath: /usr/src/app/files
+          env:
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace            
           readinessProbe:
             exec:
               command:
                 - /bin/sh
                 - -c
-                - curl -f http://todo-backend-svc:4567/todos/healthz
+                - curl -f http://${POD_NAMESPACE}-todo-backend-svc:4567/todos/healthz
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 3

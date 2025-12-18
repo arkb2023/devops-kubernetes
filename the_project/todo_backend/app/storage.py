@@ -23,12 +23,13 @@ def get_required_env(var_name: str, default: str = None) -> str:
         return default or ""
 
 def build_db_url() -> str:
+    namespace = get_required_env("POD_NAMESPACE", "undefined")
     host = get_required_env("DB_HOST", "undefined")
     port = int(get_required_env("DB_PORT", "1111"))
     db = get_required_env("POSTGRES_DB", "undefined")
     user = get_required_env("POSTGRES_USER", "undefined")
     password = get_required_env("POSTGRES_PASSWORD", "")
-    url = f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{db}"
+    url = f"postgresql+asyncpg://{user}:{password}@{namespace}-{host}:{port}/{db}"
     logger.info("storage.py: Final DB URL: %s", url)
     return url
 

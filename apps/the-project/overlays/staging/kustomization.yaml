@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: staging
+
+resources: 
+- ../../base
+
+patches:
+- path: broadcaster-staging.yaml
+
+namePrefix: staging-
+
+images:
+# Broadcaster
+- name: arkb2023/broadcaster:latest
+  newName: arkb2023/broadcaster
+  newTag: 0f71be809aa25ea04e67059524ce4b0da1b9f91c
+# Todo App (frontend)
+- name: arkb2023/todo-app:latest
+  newName: arkb2023/todo-app
+  newTag: 0f71be809aa25ea04e67059524ce4b0da1b9f91c
+# Todo backend
+- name: arkb2023/todo-backend:latest
+  newName: arkb2023/todo-backend
+  newTag: 0f71be809aa25ea04e67059524ce4b0da1b9f91c

@@ -1,10 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: project
   name: todo-backend-dep
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: todo-backend
@@ -24,8 +23,13 @@ spec:
           volumeMounts:
           - name: shared-image
             mountPath: /usr/src/app/files
-          envFrom:
+          env:
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace  # staging/production
 
+          envFrom:
           # For todo backend specific environment variables
           # -----------------------------------------------
           - configMapRef:

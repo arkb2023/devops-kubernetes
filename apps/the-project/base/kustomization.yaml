@@ -1,9 +1,15 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: project
-
 resources:
+
+# Storage (shared across environments)
+- persistentvolume.yaml
+- persistentvolumeclaim.yaml
+
+# Broadcaster
+- broadcaster-deployment.yaml
+
 # PostgreSQL
 - postgresql-dbsecret.yaml
 - postgresql-configmap.yaml
@@ -20,5 +26,9 @@ resources:
 - todo-app-service.yaml
 - todo-app-deployment.yaml
 
+# Common ingress
+- todo-ingress.yaml
+
 # CronJobs
-- cron_wiki_todo.yaml
+#- cron_wiki_todo.yaml
+
