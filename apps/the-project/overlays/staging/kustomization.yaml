@@ -8,8 +8,10 @@ resources:
 
 patches:
 - path: broadcaster-staging.yaml
+- path: todo-ingress-path-patch.yaml
 
 namePrefix: staging-
+
 
 images:
 # Broadcaster

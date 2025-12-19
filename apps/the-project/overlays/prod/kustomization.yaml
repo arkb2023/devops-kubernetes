@@ -4,6 +4,10 @@ namespace: production
 resources: [../../base]
 namePrefix: prod-
 
+
+patches:
+- path: todo-ingress-path-patch.yaml
+
 images:
 - name: arkb2023/broadcaster:latest
   newName: broadcaster:latest

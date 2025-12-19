@@ -26,9 +26,13 @@ resources:
 - todo-app-service.yaml
 - todo-app-deployment.yaml
 
-# Common ingress
-- todo-ingress.yaml
+# Ingress - refrenced through overlay kustomization
+- todo-ingress.yaml # default paths
+#- todo-ingress-rewrite.yaml # env paths /staging, /prod overwrite
 
 # CronJobs
 #- cron_wiki_todo.yaml
+
+patches:
+- path: todo-ingress-rewrite.yaml
 
