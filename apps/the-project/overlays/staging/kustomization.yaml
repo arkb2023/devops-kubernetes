@@ -5,17 +5,17 @@ namespace: staging
 
 # define new resource or replace existing ones
 resources:
-- persistentvolume.yaml           # app PV
-- persistentvolumeclaim.yaml      # app PVC 
-- ../../base                      # base files
-- todo-ingressroute.yaml          # Traefik
-- postgresql-init-script.yaml     # DB schema
+- persistentvolume.yaml
+- persistentvolumeclaim.yaml
+- ../../base
+- todo-ingressroute.yaml
+- postgresql-init-script.yaml
 
 # replace existing resource definition completely  
 patches:
 - path: broadcaster-patch.yaml
-- path: postgresql-configmap-patch.yaml     # POSTGRES_DB: todos-staging
-- path: postgresql-statefulset-patch.yaml   # local-path storageClass
+- path: postgresql-configmap-patch.yaml
+- path: postgresql-statefulset-patch.yaml
 
 # merge into existing resources
 #- postgresql-configmap-patch.yaml
@@ -28,10 +28,10 @@ namePrefix: staging-
 images:
 - name: arkb2023/broadcaster:latest
   newName: arkb2023/broadcaster
-  newTag: 0f71be809aa25ea04e67059524ce4b0da1b9f91c
+  newTag: 694034520a33b133626f491869d6195d7030b145
 - name: arkb2023/todo-app:latest
   newName: arkb2023/todo-app
-  newTag: 0f71be809aa25ea04e67059524ce4b0da1b9f91c
+  newTag: 694034520a33b133626f491869d6195d7030b145
 - name: arkb2023/todo-backend:latest
   newName: arkb2023/todo-backend
-  newTag: 0f71be809aa25ea04e67059524ce4b0da1b9f91c
+  newTag: 694034520a33b133626f491869d6195d7030b145
