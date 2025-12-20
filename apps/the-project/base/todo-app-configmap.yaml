@@ -11,8 +11,6 @@ data:
   CACHE_DIR: "/usr/src/app/files/cache"
   IMG_URL: "https://picsum.photos/300"
 
-  # TBD: Test Only- can be moved out
-  THE_PROJECT_ROOT: "/app"
   
   
   

@@ -19,11 +19,11 @@ spec:
         env:
         - name: NATS_URL
           value: "nats://nats.default.svc.cluster.local:4222"
-        - name: SLACK_WEBHOOK_URL
-          valueFrom:
-            secretKeyRef:
-              name: slack-webhook-secret
-              key: webhook_url
+        # - name: SLACK_WEBHOOK_URL
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: slack-webhook-secret
+        #       key: webhook_url
         - name: LOG_LEVEL
           value: "INFO"
         - name: POD_NAMESPACE

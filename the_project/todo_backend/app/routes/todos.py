@@ -14,7 +14,8 @@ from ..nats_client import (
 import logging
 import os
 
-logger = logging.getLogger("todo_backend") 
+namespace = os.getenv('POD_NAMESPACE', 'default')
+logger = logging.getLogger(f"{namespace}-todo-backend")
 
 # This inherits main.py's configuration automatically:
 # Level: INFO (from main.py basicConfig)

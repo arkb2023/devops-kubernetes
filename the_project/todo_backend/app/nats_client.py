@@ -3,14 +3,15 @@ import os
 import json
 import nats
 import logging
-from .models import TodoResponse
 
-#logger = logging.getLogger("todo_nats")
-logger = logging.getLogger("todo_backend")
 
 NATS_URL = os.getenv("NATS_URL", "nats://127.0.0.1:4222")
-NATS_SUBJECT_CREATED = "todos.created"
-NATS_SUBJECT_UPDATED = "todos.updated"
+namespace = os.getenv('POD_NAMESPACE', 'default')
+logger = logging.getLogger(f"{namespace}-todo-backend")
+
+
+NATS_SUBJECT_CREATED = f"{namespace}.todos.created"
+NATS_SUBJECT_UPDATED = f"{namespace}.todos.updated"
 
 # Simple, connect-per-publish POC
 async def publish_todo_event(subject: str, payload: dict):

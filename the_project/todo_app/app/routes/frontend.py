@@ -7,16 +7,17 @@ import time
 import logging
 from app.cache import ImageCache
 
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-LOG_FORMAT = os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-
-logging.basicConfig(level=LOG_LEVEL, format=LOG_FORMAT)
-logger = logging.getLogger("todo-app")
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
-backend_api = os.getenv("TODO_BACKEND_API", "/todos/")
-logger.info(f"frontend.py module loaded: LOG_LEVEL={LOG_LEVEL}, LOG_FORMAT={LOG_FORMAT}, backend_api={backend_api}")
+
+namespace = os.getenv("POD_NAMESPACE", "default")
+logger = logging.getLogger(f"{namespace}-todo_frontend")
+
+#backend_api = os.getenv("TODO_BACKEND_API", "./todos/")
+backend_api = f"/{namespace}/todos/" # Ensure trailing slash
+
+logger.info(f"namespace={namespace} backend_api={backend_api}")
 
 async def lifespan(app: FastAPI):
     """Fetch image on startup if cache is expired, initialize cache with metadata support."""
@@ -88,6 +89,7 @@ async def main_page(request: Request):
         "last_access": last_access_str,
         "grace_status": grace_status,
         "backend_api": backend_api,
+        "namespace": namespace,
     })
 
 @router.get("/image")

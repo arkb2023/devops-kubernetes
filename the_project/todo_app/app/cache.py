@@ -4,12 +4,9 @@ import json
 import logging
 import aiohttp
 
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-LOG_FORMAT = os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+namespace = os.getenv("POD_NAMESPACE", "default")
+logger = logging.getLogger(f"{namespace}-todo-frontend")
 
-logging.basicConfig(level=LOG_LEVEL, format=LOG_FORMAT)
-logger = logging.getLogger(__name__)
-logger.info(f"cache,py module loaded: LOG_LEVEL={LOG_LEVEL}, LOG_FORMAT={LOG_FORMAT}")
 class ImageCache:
   def __init__(self, cache_dir: str = "./cache", ttl: int = 600):
       self.cache_dir = cache_dir

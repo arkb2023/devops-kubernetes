@@ -20,7 +20,8 @@ logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
 logging.getLogger("sqlalchemy.orm").setLevel(logging.WARNING)
 logging.getLogger("sqlalchemy.dialects").setLevel(logging.ERROR)
-logger = logging.getLogger("todo_backend")
+namespace = os.getenv('POD_NAMESPACE', 'default')
+logger = logging.getLogger(f"{namespace}-todo-backend")
 
 # Local app code inherit the logging config set above
 from .storage import init_db, engine

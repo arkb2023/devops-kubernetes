@@ -3,26 +3,35 @@ kind: Kustomization
 
 namespace: staging
 
-resources: 
-- ../../base
+# define new resource or replace existing ones
+resources:
+- persistentvolume.yaml           # app PV
+- persistentvolumeclaim.yaml      # app PVC 
+- ../../base                      # base files
+- todo-ingressroute.yaml          # Traefik
+- postgresql-init-script.yaml     # DB schema
 
+# replace existing resource definition completely  
 patches:
-- path: broadcaster-staging.yaml
-- path: todo-ingress-path-patch.yaml
+- path: broadcaster-patch.yaml
+- path: postgresql-configmap-patch.yaml     # POSTGRES_DB: todos-staging
+- path: postgresql-statefulset-patch.yaml   # local-path storageClass
+
+# merge into existing resources
+#- postgresql-configmap-patch.yaml
 
 namePrefix: staging-
 
-
-images:
 # Broadcaster
+# Todo App (frontend)
+# Todo backend
+images:
 - name: arkb2023/broadcaster:latest
   newName: arkb2023/broadcaster
   newTag: 0f71be809aa25ea04e67059524ce4b0da1b9f91c
-# Todo App (frontend)
 - name: arkb2023/todo-app:latest
   newName: arkb2023/todo-app
   newTag: 0f71be809aa25ea04e67059524ce4b0da1b9f91c
-# Todo backend
 - name: arkb2023/todo-backend:latest
   newName: arkb2023/todo-backend
   newTag: 0f71be809aa25ea04e67059524ce4b0da1b9f91c

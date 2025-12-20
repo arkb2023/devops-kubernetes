@@ -6,7 +6,10 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select, and_
 from .models import Base, TodoDB, TodoCreate, TodoResponse, TodoUpdate
 
-logger = logging.getLogger("todo_backend")
+namespace = os.getenv('POD_NAMESPACE', 'default')
+logger = logging.getLogger(f"{namespace}-todo-backend")
+
+
 
 # Globals
 engine: AsyncEngine | None = None

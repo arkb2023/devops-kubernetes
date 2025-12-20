@@ -8,9 +8,17 @@ import logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOG_FORMAT = "%(asctime)s [%(name)s] %(levelname)s %(message)s"
 logging.basicConfig(level=LOG_LEVEL, format=LOG_FORMAT)
-logger = logging.getLogger("broadcaster")
+
 
 DEFAULT_NATS_URL="nats://127.0.0.1:4222"
+namespace = f"{os.getenv('POD_NAMESPACE', 'default')}"
+
+# Looging with namespace prefixed for differentiation
+logger = logging.getLogger(f"{namespace}-broadcaster")
+
+SUBJECT=f"{namespace}.todos.>"
+QUEUE_GROUP = f"{namespace}-broadcaster-workers"
+logger.info(f"SUBJECT: {SUBJECT}, QUEUE_GROUP: {QUEUE_GROUP}")
 
 async def message_handler(msg: nats.aio.client.Msg, slack_webhook_url=None):
     
@@ -20,7 +28,7 @@ async def message_handler(msg: nats.aio.client.Msg, slack_webhook_url=None):
         data_str = repr(msg.data)
 
     # Always logs
-    logger.info(f"[broadcaster] subject={msg.subject} data={data_str}")
+    logger.info(f"subject={msg.subject} data={data_str}")
 
     if slack_webhook_url:
         # Include the full JSON payload in the Slack message
@@ -29,7 +37,7 @@ async def message_handler(msg: nats.aio.client.Msg, slack_webhook_url=None):
             await session.post(slack_webhook_url, json={"text": text})
 
 
-async def main(slack_webhook_url=None, nats_url=None, subject="todos.>"):
+async def main(slack_webhook_url=None, nats_url=None, subject=SUBJECT):
     # Connect to NATS
     nc = await nats.connect(servers=[nats_url])
     logger.info(f"Connected to NATS at {nats_url}, subscribing to {subject}")
@@ -39,7 +47,7 @@ async def main(slack_webhook_url=None, nats_url=None, subject="todos.>"):
     # await nc.subscribe(subject, cb=message_handler)
 
     # Queue group name (all replicas must use the same one)
-    QUEUE_GROUP = "broadcaster-workers"
+    #QUEUE_GROUP = "broadcaster-workers"
     # Use queue subscribe instead of plain subscribe
     # Pass slack_webhook_url via closure to async handler
     async def nats_handler(msg):

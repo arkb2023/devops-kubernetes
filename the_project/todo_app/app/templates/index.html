@@ -5,6 +5,12 @@
   <title>The Project App</title>
   <style>
     body { font-family: Arial, sans-serif; }
+    #ns {
+      position: fixed; top: 10px; right: 10px;
+      font-size: 12px; color: #999;
+      border: 1px solid #ccc; padding: 6px;
+      background: #89b155;
+    }
     #cache-metadata {
       position: fixed; bottom: 10px; right: 10px;
       font-size: 12px; color: #999;
@@ -18,7 +24,7 @@
   <hr />
 
   <!-- Display cached image -->
-  <img src="/image" alt="Random Image" />
+  <img src="/{{ namespace }}/image" alt="Random Image" />
 
   <hr />
 
@@ -53,7 +59,8 @@
     Last Site Access: {{ last_access }}<br />
     Status: {{ grace_status }}<br />
   </div>
+  <div id="ns">{{namespace}}</div>
   <script>const backend_api = "{{ backend_api }}";</script>
-  <script src="/static/scripts.js"></script>
+  <script src="/{{ namespace }}/static/scripts.js"></script>
 </body>
 </html>
