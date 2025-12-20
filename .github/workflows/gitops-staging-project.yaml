@@ -34,7 +34,7 @@ jobs:
     #5
     - name: Build Broadcaster App
       run: |
-        docker build -t arkb2023/broadcaster:${GITHUB_SHA} apps/the-project/broadcaster
+        docker build -t arkb2023/broadcaster:${GITHUB_SHA} the_project/broadcaster
         docker push arkb2023/broadcaster:${GITHUB_SHA}
     #6
     - name: Setup Kustomize
