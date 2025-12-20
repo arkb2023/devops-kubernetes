@@ -1,6 +1,8 @@
 name: GitOps Staging Project (Todo App + Todo Backend + Broadcaster)
 on:
   push:
+    branches:
+      - main
     paths:
     - '.github/workflows/gitops-staging-project.yaml'
     - 'apps/the-project/overlays/staging'

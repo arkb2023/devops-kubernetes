@@ -8,11 +8,12 @@ spec:
   source:
     repoURL: https://github.com/arkb2023/devops-kubernetes
     path: apps/the-project/overlays/prod
-    targetRevision: semver:^1
+    targetRevision: 4.9.0.1
   destination:
     server: https://kubernetes.default.svc
     namespace: production
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true
+
