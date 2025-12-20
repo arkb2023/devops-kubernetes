@@ -52,5 +52,5 @@ jobs:
     - name: Commit kustomization changes
       uses: EndBug/add-and-commit@v9
       with:
-        add: 'environments/project-local/kustomization.yaml'
-        message: "Project GitOps ${{ github.sha }}"
+        add: 'apps/the-project/overlays/staging/kustomization.yaml'
+        message: "GitOps Staging Project ${{ github.sha }}"
