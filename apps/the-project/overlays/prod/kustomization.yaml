@@ -5,28 +5,28 @@ namespace: production
 
 resources:
 - persistentvolume.yaml
-- persistentvolumeclaim.yaml 
+- persistentvolumeclaim.yaml
 - ../../base
 - todo-ingressroute.yaml
-- postgresql-init-script.yaml     # DB schema
+- postgresql-init-script.yaml
 
 patches:
 - path: broadcaster-patch.yaml
-- path: postgresql-configmap-patch.yaml     # POSTGRES_DB: todos-staging
-- path: postgresql-statefulset-patch.yaml   # local-path storageClass
+- path: postgresql-configmap-patch.yaml
+- path: postgresql-statefulset-patch.yaml
 
 namePrefix: production-
 
-images:
 # Broadcaster
+# Todo App (frontend)
+# Todo backend
+images:
 - name: arkb2023/broadcaster:latest
   newName: arkb2023/broadcaster
-  newTag: 0f71be809aa25ea04e67059524ce4b0da1b9f91c
-# Todo App (frontend)
+  newTag: 4.9.0.4
 - name: arkb2023/todo-app:latest
   newName: arkb2023/todo-app
-  newTag: 0f71be809aa25ea04e67059524ce4b0da1b9f91c
-# Todo backend
+  newTag: 4.9.0.4
 - name: arkb2023/todo-backend:latest
   newName: arkb2023/todo-backend
-  newTag: 0f71be809aa25ea04e67059524ce4b0da1b9f91c
+  newTag: 4.9.0.4
