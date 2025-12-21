@@ -20,7 +20,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     #1
-    - uses: actions/checkout@v4
+    - name: Checkout repo - both tag and main branch
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0          # Full history!
+        ref: ${{ github.ref }}  # Checkout tag
     #2
     - name: Login to Docker Hub
       uses: docker/login-action@v3
@@ -30,6 +34,7 @@ jobs:
     #3
     - name: Build Todo Backend App
       run: |
+        # 
         docker build -t arkb2023/todo-backend:${{ github.ref_name }} the_project/todo_backend
         docker push arkb2023/todo-backend:${{ github.ref_name }}
     #4
@@ -51,6 +56,7 @@ jobs:
     - name: Update images in overlays/prod/kustomization.yaml 
       working-directory: apps/the-project/overlays/prod
       run: |
+        git fetch origin main
         git checkout main
         kustomize edit set image arkb2023/todo-backend:latest=arkb2023/todo-backend:${{ github.ref_name }}
         kustomize edit set image arkb2023/todo-app:latest=arkb2023/todo-app:${{ github.ref_name }}
