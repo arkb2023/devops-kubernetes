@@ -1,19 +1,20 @@
-name: GitOps Staging Project (Todo App + Todo Backend + Broadcaster)
+name: GitOps Production Project (Todo App + Todo Backend + Broadcaster)
 on:
   push:
-    branches:
-      - main
+    # Production triggers on tagged commit
+    tags:
+      - "4.9.*"  
     paths:
     # Common
+    - 'apps/the-project/base'
     - 'the_project/broadcaster'
     - 'the_project/todo_app'
     - 'the_project/todo_backend'
-    - 'apps/the-project/base'
-
-    # Staging
-    - '.github/workflows/gitops-staging-project.yaml'
-    - 'apps/the-project/overlays/staging'
-    - 'apps/the-project/argocd-apps/staging-app.yaml'
+    
+    # Production
+    - 'apps/the-project/argocd-apps/prod-app.yaml'
+    - '.github/workflows/gitops-production-project.yaml'
+    - 'apps/the-project/overlays/prod'
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -48,7 +49,7 @@ jobs:
     
     #7
     - name: Update kustomization.yaml
-      working-directory: apps/the-project/overlays/staging
+      working-directory: apps/the-project/overlays/prod
       run: |
         kustomize edit set image arkb2023/todo-backend:latest=arkb2023/todo-backend:${GITHUB_SHA}
         kustomize edit set image arkb2023/todo-app:latest=arkb2023/todo-app:${GITHUB_SHA}
@@ -58,5 +59,5 @@ jobs:
     - name: Commit kustomization changes
       uses: EndBug/add-and-commit@v9
       with:
-        add: 'apps/the-project/overlays/staging/kustomization.yaml'
-        message: "GitOps Staging Project ${{ github.sha }}"
+        add: 'apps/the-project/overlays/prod/kustomization.yaml'
+        message: "GitOps Production Project ${{ github.sha }}"
