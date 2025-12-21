@@ -28,10 +28,10 @@ namePrefix: staging-
 images:
 - name: arkb2023/broadcaster:latest
   newName: arkb2023/broadcaster
-  newTag: 0f939c085220c9e6e5472d80c85fff1488195a05
+  newTag: 8ceb7db3345e689ac72e949b49a6e382024e0dca
 - name: arkb2023/todo-app:latest
   newName: arkb2023/todo-app
-  newTag: 0f939c085220c9e6e5472d80c85fff1488195a05
+  newTag: 8ceb7db3345e689ac72e949b49a6e382024e0dca
 - name: arkb2023/todo-backend:latest
   newName: arkb2023/todo-backend
-  newTag: 0f939c085220c9e6e5472d80c85fff1488195a05
+  newTag: 8ceb7db3345e689ac72e949b49a6e382024e0dca
