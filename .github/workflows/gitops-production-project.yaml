@@ -1,3 +1,6 @@
+# Build image on tag checkout
+# Switch to main + Update & Commit image in overlay/prod/kustomization
+
 name: GitOps Production Project (Todo App + Todo Backend + Broadcaster)
 on:
   push:
