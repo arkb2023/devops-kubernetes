@@ -9,15 +9,15 @@ on:
       - "4.9.*"  
     # paths:
     # # Common
-    # - 'apps/the-project/base'
-    # - 'the_project/broadcaster'
-    # - 'the_project/todo_app'
-    # - 'the_project/todo_backend'
+    # - 'apps/the-project/base/**'
+    # - 'the_project/broadcaster/**'
+    # - 'the_project/todo_app/**'
+    # - 'the_project/todo_backend/**'
     
     # # Production
     # #- 'apps/the-project/argocd-apps/prod-app.yaml'
     # #- '.github/workflows/gitops-production-project.yaml'
-    # #- 'apps/the-project/overlays/prod'
+    # #- 'apps/the-project/overlays/prod/**'
 jobs:
   deploy:
     runs-on: ubuntu-latest

@@ -5,14 +5,14 @@ on:
       - main
     paths:
     # Common
-    - 'the_project/broadcaster'
-    - 'the_project/todo_app'
-    - 'the_project/todo_backend'
-    - 'apps/the-project/base'
+    - 'the_project/broadcaster/**'
+    - 'the_project/todo_app/**'
+    - 'the_project/todo_backend/**'
+    - 'apps/the-project/base/**'
 
     # Staging
     - '.github/workflows/gitops-staging-project.yaml'
-    - 'apps/the-project/overlays/staging'
+    - 'apps/the-project/overlays/staging/**'
     - 'apps/the-project/argocd-apps/staging-app.yaml'
 jobs:
   deploy:
