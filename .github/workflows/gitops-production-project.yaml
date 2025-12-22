@@ -6,7 +6,7 @@ on:
   push:
     # Production triggers on tagged commit
     tags:
-      - "4.9.*"  
+      - "v4.9.*"
     # paths:
     # # Common
     # - 'apps/the-project/base/**'
