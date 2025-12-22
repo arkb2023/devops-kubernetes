@@ -9,6 +9,7 @@ resources:
 - ../../base
 - todo-ingressroute.yaml
 - postgresql-init-script.yaml
+- postgresql-backup-cronjob.yaml
 
 patches:
 - path: broadcaster-patch.yaml
