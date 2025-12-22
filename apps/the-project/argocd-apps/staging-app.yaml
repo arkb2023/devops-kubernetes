@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: https://github.com/arkb2023/devops-kubernetes
     path: apps/the-project/overlays/staging
-    targetRevision: main
+    targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc
     namespace: staging
