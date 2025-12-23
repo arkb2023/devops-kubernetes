@@ -11,25 +11,34 @@ Enhance the Project setup as follows
 - You may assume that secrets are readily applied outside of the ArgoCD  
 
 ---
+### 1. Overview
 
-**Key Changes from Base**
-Reorganized the repository structure into follwoing key folders:
-- [`apps/the-project/argocd-apps/`](../apps/the-project/argocd-apps/): Contains ArgoCD Application CRs for staging and production environments.
+**GitOps architecture** implements **Kustomize base+overlays** pattern with **ArgoCD Applications** and **GitHub Actions** CI/CD:
 
-- [`apps/the-project/base/`](../apps/the-project/base/): Contains base kustomize manifests for the application components.
-- [`apps/the-project/overlays/`](../apps/the-project/overlays/): Contains overlays 
-  - [`apps/the-project/overlays/staging`](../apps/the-project/overlays/staging/) for staging environment
-  - [`apps/the-project/overlays/prod`](../apps/the-project/overlays/prod/) for production environment
-- [`.github/workflows/`](../.github/workflows/): Contains GitHub Actions workflows for automating deployments to staging and production.
-- [`the_project/`](../the_project/): Contains the source code for applications
-    - [`the_project/broadcaster/`](../the_project/broadcaster/): Source code for the broadcaster application.
-    - [`the_project/todo_app/`](../the_project/todo_app/): Source code for the todo app application.
-    - [`the_project/todo_backend/`](../the_project/todo_backend/): Source code for the todo backend application.
----
+- **base/**: Shared Kubernetes manifests (Deployments, Services, PostgreSQL StatefulSet)
+- **overlays/{staging,prod}/**: Environment-specific patches via `kustomization.yaml`
+- **argocd-apps/**: ArgoCD **Application CRs** (`prod-app.yaml`, `staging-app.yaml`)
+- **.github/workflows/**: **main→staging**, **tags→production** pipelines
+- **Application Enhancements**: `POD_NAMESPACE` env var drives environment isolation:
 
-**Key Enhancements for environment separation and deployment automation**
+| Category | Feature | Staging | Production |
+|----------|---------|---------|------------|
+| **Deployment** | Namespace | `staging` | `production` |
+| | Trigger | `main` commits | `v4.9.*` tags |
+| | Images | `<commit-sha>` | `<git-tag>` |
+| | ArgoCD App | `the-project-staging` | `the-project-production` |
+| **Database** | Name | `todos-staging` | `todos-production` |
+| | Host | `staging-postgresql-db` | `production-postgresql-db` |
+| | Backups | None | CronJob |
+| **Broadcaster** | Behavior | NATS + Logs only | NATS + Slack |
+| | Subjects | `staging.todos.*` | `production.todos.*` |
+| | Queue Group | `staging-broadcaster-workers` | `production-broadcaster-workers` |
+| **API/Ingress** | Path Prefix | `/staging` | `/production` |
+| | PVC | `staging-local-pv` | `production-local-pv` |
 
-ArgoCD Applications:
+### 2. Key Enhancements on Base [`project v4.8`](https://github.com/arkb2023/devops-kubernetes/tree/4.8/the_project)
+
+- **ArgoCD Applications:**
 - [`apps/the-project/argocd-apps/staging-app.yaml`](../apps/the-project/argocd-apps/staging-app.yaml): ArgoCD Application CR for staging environment.
   - points to the `apps/the-project/overlays/staging` overlay in the repository
   - target namespace set to `staging`
@@ -37,7 +46,7 @@ ArgoCD Applications:
   - points to the `apps/the-project/overlays/prod` overlay in the repository
   - target namespace set to `production`
 
-Staging environment:
+- **Staging environment:**
   - [`apps/the-project/overlays/staging/kustomization.yaml`](../apps/the-project/overlays/staging/kustomization.yaml) - Defines staging environment attributes like namespace, resources, patches, namePrefix and images
     - namespace set to `staging`
     - Resources such as,
@@ -47,12 +56,12 @@ Staging environment:
       - `todo-ingressroute.yaml` - IngressRoute for staging at `/staging` and `/staging/todos` paths with middleware to strip `/staging` prefix
     - Patches such as,
       - `broadcaster-patch.yaml` - Patches [`base/broadcaster-deployment.yaml`](../apps/the-project/base/broadcaster-deployment.yaml) with environment variable `FORWARD_TO_EXTERNAL_SERVICE` set to `false` to configure broadcaster for staging to log messages only
-      - `postgresql-statefulset-patch.yaml` - Patches [`base/postgresql-statefulset.yaml`](apps/the-project/base/postgresql-statefulset.yaml) with container to trigger db initialization script for staging
-      - `postgresql-configmap-patch.yaml` - Patches the [`base/postgresql-configmap.yaml`](apps/the-project/base/postgresql-configmap.yaml) configmap with staging database `todos-staging`
+      - `postgresql-statefulset-patch.yaml` - Patches [`base/postgresql-statefulset.yaml`](../apps/the-project/base/postgresql-statefulset.yaml) with container to trigger db initialization script for staging
+      - `postgresql-configmap-patch.yaml` - Patches the [`base/postgresql-configmap.yaml`](../apps/the-project/base/postgresql-configmap.yaml) configmap with staging database `todos-staging`
     - namePrefix set to `staging-` so that all resources are prefixed with `staging-`
     - images updated to use commit sha tags from main branch commits for all three applications
 
-Production environment:
+- **Production environment:**
   - [`apps/the-project/overlays/prod/kustomization.yaml`](../apps/the-project/overlays/prod/kustomization.yaml) - Defines production environment attributes like namespace, resources, patches, namePrefix and images
     - namespace set to `production`
     - Resources such as,
@@ -65,80 +74,67 @@ Production environment:
       - `broadcaster-patch.yaml` - Patches [`base/broadcaster-deployment.yaml`](../apps/the-project/base/broadcaster-deployment.yaml) with environment variables
         - `FORWARD_TO_EXTERNAL_SERVICE` set to `true` to configure broadcaster for production to forward messages to Slack
         - `SLACK_WEBHOOK_URL` set from `slack-webhook-secret` secret
-      - `postgresql-statefulset-patch.yaml` - Patches [`base/postgresql-statefulset.yaml`](apps/the-project/base/postgresql-statefulset.yaml) with container to trigger db initialization script for production
-      - `postgresql-configmap-patch.yaml` - Patches the [`base/postgresql-configmap.yaml`](apps/the-project/base/postgresql-configmap.yaml) configmap with production database `todos-roduction`
+      - `postgresql-statefulset-patch.yaml` - Patches [`base/postgresql-statefulset.yaml`](../apps/the-project/base/postgresql-statefulset.yaml) with container to trigger db initialization script for production
+      - `postgresql-configmap-patch.yaml` - Patches the [`base/postgresql-configmap.yaml`](../apps/the-project/base/postgresql-configmap.yaml) configmap with production database `todos-roduction`
     - namePrefix set to `production-` so that all resources are prefixed with `production-`
     - images updated to use tagged commit versions for all three applications
 
-GitHub Actions Workflows:
-- [`.github/workflows/gitops-staging-project.yaml`](../.github/workflows/gitops-staging-project.yaml): Automates deployment to `staging` environment 
-  - Triggers on push to `main` branch, 
-  - Checks out the repository 
-  - Builds and pushes Docker images sha tags for all three applications
-  - Updates the [`overlays/staging/kustomization.yaml`](../apps/the-project/overlays/staging/kustomization.yaml) file with new image sha tags
-  - Commits and pushes the updated kustomization file back to the repository
-- [`.github/workflows/gitops-production-project.yaml`](../.github/workflows/gitops-production-project.yaml): Automates deployment to `production` environment 
-  - Triggers on push of tags matching `v4.9.*` pattern, 
-  - Checks out the repository 
-  - Builds and pushes Docker images with git tag for all three applications
-  - Updates the [`overlays/prod/kustomization.yaml`](../apps/the-project/overlays/prod/kustomization.yaml) file with new image tag versions
-  - Commits and pushes the updated kustomization file back to the repository
+- **GitHub Actions Workflows:**
+  - [`.github/workflows/gitops-staging-project.yaml`](../.github/workflows/gitops-staging-project.yaml): Automates deployment to `staging` environment 
+    - Triggers on push to `main` branch, 
+    - Checks out the repository 
+    - Builds and pushes Docker images sha tags for all three applications
+    - Updates the [`overlays/staging/kustomization.yaml`](../apps/the-project/overlays/staging/kustomization.yaml) file with new image sha tags
+    - Commits and pushes the updated kustomization file back to the repository
+  - [`.github/workflows/gitops-production-project.yaml`](../.github/workflows/gitops-production-project.yaml): Automates deployment to `production` environment 
+    - Triggers on push of tags matching `v4.9.*` pattern, 
+    - Checks out the repository 
+    - Builds and pushes Docker images with git tag for all three applications
+    - Updates the [`overlays/prod/kustomization.yaml`](../apps/the-project/overlays/prod/kustomization.yaml) file with new image tag versions
+    - Commits and pushes the updated kustomization file back to the repository
 
-- Application Source Code Enhancements to support environment separation:
+- **Application Enhancements:**
   - Broadcaster application:
     - [`the_project/broadcaster/broadcaster.py`](../the_project/broadcaster/broadcaster.py): 
       - Forwards to messages to `slack` if `FORWARD_TO_EXTERNAL_SERVICE` is `true` and `SLACK_WEBHOOK_URL` is defined
       - Logs messages if `FORWARD_TO_EXTERNAL_SERVICE` is `false`
       - Reads `POD_NAMESPACE` to find `namespace`, uses it derive the NATS subject to subscribe to as `<namespace>.todos.>` and queue group as `<namespace>-broadcaster-workers`
   - Todo backend Application:
-      - [`nats_client.py`] (../the_project/todo_backend/app/nats_client.py): 
+      - [`nats_client.py`](../the_project/todo_backend/app/nats_client.py): 
         - Reads `POD_NAMESPACE` environment variable to derive NATS subjects for publishing messages as `<namespace>.todos.<action>` where `<action>` is `created` or `updated`
-      - storage.py` (../the_project/todo_backend/app/storage.py):
-        - Reads `POD_NAMESPACE` environment variable to derive the database host in format <namespace>-{host}
+      - [`storage.py`](../the_project/todo_backend/app/storage.py):
+        - Reads `POD_NAMESPACE` environment variable to derive the database host in format `<namespace>-<host-db>` where `<host-db>` is `postgresql-db`
         - Staging resolves to `staging-postgresql-db`
         - Production backend resolves to `production-postgresql-db`
   - Todo (frontend) Application:
     - [`the_project/todo_app/app/routes/frontend.py`](../the_project/todo_app/app/routes/frontend.py): 
-      - Reads `POD_NAMESPACE` environment variable to derive the backend API in format: <namespace>/todos/
-        - Staging environment resolves to `staging/todos`
-        - Production environment resolves to `production/todos` 
+      - Reads `POD_NAMESPACE` environment variable to derive the backend API in format: `<namespace>/todos/`
+        - Staging environment resolves to `/staging/todos`
+        - Production environment resolves to `/production/todos` 
       - Updates the Jinja2 template context to pass the derived backend API URL to the frontend template
     - [`the_project/todo_app/app/templates/index.html`](../the_project/todo_app/app/templates/index.html):
       - Updates the JavaScript code to use the passed `backend_api` variable for making API calls to the backend
         - Staging environment resolves to:   
+          ```text
           GET /staging  
           GET /staging/todos  
           GET /staging/image  
           POST /staging/todos  
           PUT /staging/todos/{id}  
+          ```
         - Production environment resolves to:  
+          ```text
           GET /production  
           GET /production/todos  
           GET /production/image  
           POST /production/todos  
           PUT /production/todos/{id}
+          ```
 
 ---
 
-Reorganized the repository structure into follwoing key folders:
-- [`apps/the-project/argocd-apps/`](../apps/the-project/argocd-apps/): Contains ArgoCD Application CRs for staging and production environments.
-  - [`apps/the-project/argocd-apps/staging-app.yaml`](../apps/the-project/argocd-apps/staging-app.yaml): ArgoCD Application CR for staging environment.
-  - [`apps/the-project/argocd-apps/prod-app.yaml`](../apps/the-project/argocd-apps/prod-app.yaml): ArgoCD Application CR for production environment.
-- [`apps/the-project/base/`](../apps/the-project/base/): Contains base kustomize manifests for the application components.
-  - [`apps/the-project/base/kustomization.yaml`](../apps/the-project/base/kustomization.yaml): Kustomization file defining the base resources.
-- [`apps/the-project/overlays/`](../apps/the-project/overlays/): Contains overlays 
-  - [`apps/the-project/overlays/staging`](../apps/the-project/overlays/staging/) for staging environment
-  - [`apps/the-project/overlays/prod`](../apps/the-project/overlays/prod/) for production environment
-- [`.github/workflows/`](../.github/workflows/): Contains GitHub Actions workflows for automating deployments to staging and production.
-- [`the_project/`](../the_project/): Contains the source code for applications
-    - [`the_project/broadcaster/`](../the_project/broadcaster/): Source code for the broadcaster application.
-    - [`the_project/todo_app/`](../the_project/todo_app/): Source code for the todo app application.
-    - [`the_project/todo_backend/`](../the_project/todo_backend/): Source code for the todo backend application.
----
 
----
-
-**Directory and File Structure**
+### 3. Directory and File Structure
 
 <pre>
 devops-kubernetes                               # Repository Root
@@ -219,7 +215,7 @@ devops-kubernetes                               # Repository Root
     │   ├── requirements.txt
 </pre>
 
-**Base Setup**  
+### 4. Cluster Setup
 - Docker  
 - k3d (K3s in Docker)  
 - kubectl (Kubernetes CLI)
@@ -228,7 +224,7 @@ devops-kubernetes                               # Repository Root
   ```bash
   k3d cluster create dwk-local --agents 2 --port 8081:80@loadbalancer
   ```
-- Create staging and production directories for todos database
+- Create staging and production directories for PersistentVolumes
   ```bash
   docker exec k3d-dwk-local-agent-0 mkdir -p /tmp/kube-staging
   docker exec k3d-dwk-local-agent-0 chmod 777 /tmp/kube-staging
@@ -250,46 +246,32 @@ devops-kubernetes                               # Repository Root
   ```
 - Access ArgoCD web UI at: `http://localhost:8080/applications`, use `admin` as username and the password retrieved above.
 
-
-# Create namespace + secrets
-kubectl create ns staging
-
-  
-kubectl -n production create secret generic slack-webhook-secret \
-  --from-literal=webhook_url=$SLACK_WEBHOOK_URL
-
-# Deploy staging manually first
-kustomize build overlays/staging | kubectl -n staging apply -f - 
-# Verify
-kubectl -n staging get all
-kubectl -n staging logs -l app=broadcaster | grep "Staging: Logging only"
-
-
+### 5. Deploy ArgoCD Applications
 - Apply ArgoCD apps for staging and production
   ```bash
+  # Staging 
   kubectl apply -f apps/the-project/argocd-apps/staging-app.yaml
-  ```
-  ```bash
+
+  # Production
   kubectl apply -f apps/the-project/argocd-apps/prod-app.yaml
   ```
-- Create slack secrets for production
+- Slack secret for production
   ```bash
   export SLACK_WEBHOOK_URL="https://hooks.slack.com/REAL" # Replace with real URL
-  kubectl -n production create secret generic slack-webhook-secret   --from-literal=webhook_url=$SLACK_WEBHOOK_URL
+  kubectl -n production create secret generic slack-webhook-secret --from-literal=webhook_url=$SLACK_WEBHOOK_URL
   ```
-### 1. Verify two separate environments: production and staging that are in their own namespaces
 
-- Verify ArgoCD sync status for staging and production
+- Verify ArgoCD Sync
   ```bash
   kubectl -n argocd get applications
   NAME                     SYNC STATUS   HEALTH STATUS
   the-project-production   Synced        Healthy
   the-project-staging      Synced        Healthy
   ```
-- ArgoCD applications in staging and production namespaces:  
+- ArgoCD UI - Applications deployed to respective namespaces:  
   ![caption](./images/01-argocd-production-staging-apps-deployed-in-respective-namespaces.png)
 
-- Verify pods in staging and production
+- Verify Pods (namePrefix Working)
   ```bash
   kubectl -n staging get pods
   NAME                                       READY   STATUS    RESTARTS   AGE
@@ -316,124 +298,11 @@ kubectl -n staging logs -l app=broadcaster | grep "Staging: Logging only"
   production-todo-app-dep-67c5bf7bc9-lwj74      2/2     Running   0          2m12s
   production-todo-backend-dep-b5c6bbc76-bcr8t   1/1     Running   0          2m12s
   ```
+  > *namePrefix:* `staging-` and `production-` prefixes applied correctly
 
-- Verify broadcaster logs in staging and production  
-  *Staging:*
-  ```bash
-  kubectl -n staging logs -l app=broadcaster
+### 6. Verify Main Branch → Staging Deployment  
 
-  # Output shows logs of 6 braodcaster pods interleaved:
-  # Each pod shows,
-  #   SUBJECT: staging.todos.>
-  #   QUEUE_GROUP: staging-broadcaster-workers
-  #   Staging: Logging only
-  #   Connected to NATS at nats://nats.default.svc.cluster.local:4222, subscribing to staging.todos.>
-
-  # ---------------------------------------------------------------------------------------------------------
-  # braodcaster #1
-  # ---------------------------------------------------------------------------------------------------------
-  2025-12-22 04:00:49,913 [staging-broadcaster] INFO SUBJECT: staging.todos.>, QUEUE_GROUP: staging-broadcaster-workers
-  2025-12-22 04:00:49,914 [staging-broadcaster] INFO Using NATS_URL=nats://nats.default.svc.cluster.local:4222
-  2025-12-22 04:00:49,914 [staging-broadcaster] INFO Staging: Logging only
-  2025-12-22 04:00:49,973 [staging-broadcaster] INFO Connected to NATS at nats://nats.default.svc.cluster.local:4222, subscribing to staging.todos.>
-  
-  # braodcaster  #2
-  # ---------------------------------------------------------------------------------------------------------
-  2025-12-22 04:00:49,893 [staging-broadcaster] INFO SUBJECT: staging.todos.>, QUEUE_GROUP: staging-broadcaster-workers
-  2025-12-22 04:00:49,893 [staging-broadcaster] INFO Using NATS_URL=nats://nats.default.svc.cluster.local:4222
-  2025-12-22 04:00:49,893 [staging-broadcaster] INFO Staging: Logging only
-  2025-12-22 04:00:49,908 [staging-broadcaster] INFO Connected to NATS at nats://nats.default.svc.cluster.local:4222, subscribing to staging.todos.>
-  
-  # braodcaster  #3
-  # ---------------------------------------------------------------------------------------------------------
-  2025-12-22 04:00:49,926 [staging-broadcaster] INFO SUBJECT: staging.todos.>, QUEUE_GROUP: staging-broadcaster-workers
-  2025-12-22 04:00:49,927 [staging-broadcaster] INFO Using NATS_URL=nats://nats.default.svc.cluster.local:4222
-  2025-12-22 04:00:49,927 [staging-broadcaster] INFO Staging: Logging only
-  2025-12-22 04:00:49,946 [staging-broadcaster] INFO Connected to NATS at nats://nats.default.svc.cluster.local:4222, subscribing to staging.todos.>
-  
-  # broadcaster  #4
-  # ---------------------------------------------------------------------------------------------------------
-  2025-12-22 04:00:49,945 [staging-broadcaster] INFO SUBJECT: staging.todos.>, QUEUE_GROUP: staging-broadcaster-workers
-  2025-12-22 04:00:49,945 [staging-broadcaster] INFO Using NATS_URL=nats://nats.default.svc.cluster.local:4222
-  2025-12-22 04:00:49,945 [staging-broadcaster] INFO Staging: Logging only
-  2025-12-22 04:00:49,955 [staging-broadcaster] INFO Connected to NATS at nats://nats.default.svc.cluster.local:4222, subscribing to staging.todos.>
-  
-  # broadcaster  #5
-  # ---------------------------------------------------------------------------------------------------------
-  2025-12-22 04:00:49,929 [staging-broadcaster] INFO SUBJECT: staging.todos.>, QUEUE_GROUP: staging-broadcaster-workers
-  2025-12-22 04:00:49,929 [staging-broadcaster] INFO Using NATS_URL=nats://nats.default.svc.cluster.local:4222
-  2025-12-22 04:00:49,929 [staging-broadcaster] INFO Staging: Logging only
-  2025-12-22 04:00:49,942 [staging-broadcaster] INFO Connected to NATS at nats://nats.default.svc.cluster.local:4222, subscribing to staging.todos.>
-  
-  # broadcaster  #6
-  # ---------------------------------------------------------------------------------------------------------
-  2025-12-22 04:00:49,967 [staging-broadcaster] INFO SUBJECT: staging.todos.>, QUEUE_GROUP: staging-broadcaster-workers
-  2025-12-22 04:00:49,967 [staging-broadcaster] INFO Using NATS_URL=nats://nats.default.svc.cluster.local:4222
-  2025-12-22 04:00:49,967 [staging-broadcaster] INFO Staging: Logging only
-  2025-12-22 04:00:49,980 [staging-broadcaster] INFO Connected to NATS at nats://nats.default.svc.cluster.local:4222, subscribing to staging.todos.>
-  ```
-  *Production:*
-
-  ```bash
-  kubectl -n production logs -l app=broadcaster
-
-  # ---------------------------------------------------------------------------------------------------------
-  # Output shows logs of 6 braodcaster pods interleaved:
-  # Each pod shows,
-  #   SUBJECT: production.todos.>
-  #   QUEUE_GROUP: production-broadcaster-workers
-  #   "Production: Forwarding to Slack"
-  #   Connected to NATS at nats://nats.default.svc.cluster.local:4222, subscribing to production.todos.>
-  # ---------------------------------------------------------------------------------------------------------
-
-  # braodcaster #1
-  # ---------------------------------------------------------------------------------------------------------
-  2025-12-22 04:01:05,727 [production-broadcaster] INFO SUBJECT: production.todos.>, QUEUE_GROUP: production-broadcaster-workers
-  2025-12-22 04:01:05,727 [production-broadcaster] INFO Using NATS_URL=nats://nats.default.svc.cluster.local:4222
-  2025-12-22 04:01:05,727 [production-broadcaster] INFO Production: Forwarding to Slack
-  2025-12-22 04:01:05,734 [production-broadcaster] INFO Connected to NATS at nats://nats.default.svc.cluster.local:4222, subscribing to production.todos.>
-
-  # braodcaster  #2
-  # ---------------------------------------------------------------------------------------------------------
-  2025-12-22 04:01:05,666 [production-broadcaster] INFO SUBJECT: production.todos.>, QUEUE_GROUP: production-broadcaster-workers
-  2025-12-22 04:01:05,666 [production-broadcaster] INFO Using NATS_URL=nats://nats.default.svc.cluster.local:4222
-  2025-12-22 04:01:05,666 [production-broadcaster] INFO Production: Forwarding to Slack
-  2025-12-22 04:01:05,673 [production-broadcaster] INFO Connected to NATS at nats://nats.default.svc.cluster.local:4222, subscribing to production.todos.>
-
-  # braodcaster  #3
-  # ---------------------------------------------------------------------------------------------------------
-  2025-12-22 04:01:05,637 [production-broadcaster] INFO SUBJECT: production.todos.>, QUEUE_GROUP: production-broadcaster-workers
-  2025-12-22 04:01:05,637 [production-broadcaster] INFO Using NATS_URL=nats://nats.default.svc.cluster.local:4222
-  2025-12-22 04:01:05,637 [production-broadcaster] INFO Production: Forwarding to Slack
-  2025-12-22 04:01:05,646 [production-broadcaster] INFO Connected to NATS at nats://nats.default.svc.cluster.local:4222, subscribing to production.todos.>
-
-  # broadcaster  #4
-  # ---------------------------------------------------------------------------------------------------------
-  2025-12-22 04:01:05,586 [production-broadcaster] INFO SUBJECT: production.todos.>, QUEUE_GROUP: production-broadcaster-workers
-  2025-12-22 04:01:05,586 [production-broadcaster] INFO Using NATS_URL=nats://nats.default.svc.cluster.local:4222
-  2025-12-22 04:01:05,586 [production-broadcaster] INFO Production: Forwarding to Slack
-  2025-12-22 04:01:05,594 [production-broadcaster] INFO Connected to NATS at nats://nats.default.svc.cluster.local:4222, subscribing to production.todos.>
-
-  # broadcaster  #5
-  # ---------------------------------------------------------------------------------------------------------
-  2025-12-22 04:01:05,524 [production-broadcaster] INFO SUBJECT: production.todos.>, QUEUE_GROUP: production-broadcaster-workers
-  2025-12-22 04:01:05,524 [production-broadcaster] INFO Using NATS_URL=nats://nats.default.svc.cluster.local:4222
-  2025-12-22 04:01:05,524 [production-broadcaster] INFO Production: Forwarding to Slack
-  2025-12-22 04:01:05,533 [production-broadcaster] INFO Connected to NATS at nats://nats.default.svc.cluster.local:4222, subscribing to production.todos.>
-
-  # broadcaster  #6
-  # ---------------------------------------------------------------------------------------------------------
-  2025-12-22 04:01:05,588 [production-broadcaster] INFO SUBJECT: production.todos.>, QUEUE_GROUP: production-broadcaster-workers
-  2025-12-22 04:01:05,588 [production-broadcaster] INFO Using NATS_URL=nats://nats.default.svc.cluster.local:4222
-  2025-12-22 04:01:05,589 [production-broadcaster] INFO Production: Forwarding to Slack
-  2025-12-22 04:01:05,595 [production-broadcaster] INFO Connected to NATS at nats://nats.default.svc.cluster.local:4222, subscribing to production.todos.>tion-broadcaster] INFO SUBJECT: production.todos.>, QUEUE_GROUP: production-broadcaster-workers 
-  ```
-
-### 2. Verify each commit to the main branch result in deployment to the staging environment  
-
-- Check the current commit in staging ArgoCD app
-
-- Make a code change in `the_project/` folder, commit and push to `main` branch:  
+- Git Commit:    
   ```bash
   # Make a code change 
   git add .
@@ -453,9 +322,9 @@ kubectl -n staging logs -l app=broadcaster | grep "Staging: Logging only"
   ```
   > Note the new commit hash `9b66e7a` from above output to coorrelate with GitHub Actions run and ArgoCD sync.
 
-- GitHub Actions run for this commit `9b66e7a`:
+- GitHub Actions run for commit `9b66e7a`:
   - [Run #20422232795](https://github.com/arkb2023/devops-kubernetes/actions/runs/20422232795)
-  - Status: `✅ Success`  
+  - Status: `Success`  
 
     ![caption](./images/05-github-staging-workflow-commit-9b66e7a-to-main.png)
 
@@ -464,8 +333,8 @@ kubectl -n staging logs -l app=broadcaster | grep "Staging: Logging only"
     ![caption](./images/07-github-staging-workflow-kustomization-commit.png)
 
     Note:   
-    - The commit message is `GitOps Staging Project 9b66e7a0f65e34e6a5dc6b8bc7d48abe8d922c0c` which includes the main branch commit hash as short sha `9b66e7a` 
-    - The new commit used in kustomize build by the GitHub Actions workflow for ArgoCD to pick up shows up as long sha `c19b59adf7d9101907486d23c275e431b796cfea` and commit_sha `c19b59a` is the
+    - The commit message `GitOps Staging Project 9b66e7a0f65e34e6a5dc6b8bc7d48abe8d922c0c`, includes the main branch commit hash which is also used for the image tags - `arkb2023/*:9b66e7a0f65e34e6a5dc6b8bc7d48abe8d922c0c`
+    - The new commit `c19b59a` on `overlays/staging/kustomization.yaml` gets detected by ArgoCD for automatic sync to staging environment.
 
   - [Commit #c19b59a](https://github.com/arkb2023/devops-kubernetes/commit/c19b59adf7d9101907486d23c275e431b796cfea) shows the updated production `kustomization.yaml`:
 
@@ -533,8 +402,7 @@ kubectl -n staging logs -l app=broadcaster | grep "Staging: Logging only"
 ---
 
 
-
-### 3. Verify each tagged commit results in deployment to the production environment  
+### 7. Verify Tagged Commit → Production Deployment
 
 - Create a new tag on the main branch commit and push the tag to remote:  
   ```bash
@@ -551,14 +419,14 @@ kubectl -n staging logs -l app=broadcaster | grep "Staging: Logging only"
   ```
 - GitHub Actions run for this tag `v4.9.8`:
   - [Run #20429721091](https://github.com/arkb2023/devops-kubernetes/actions/runs/20429721091)
-  - Status: `✅ Success`
+  - Status: `Success`
     ![caption](./images/25-github-produciton-workflow-tag-push.png)
 
   - Commit step logs:  
     ![caption](./images/27-github-production-workflow-kustomization-commit.png)
     Note:   
-    - The commit message is `GitOps Production Project v4.9.8` which includes the tag name `v4.9.8` 
-    - The new commit used in  kustomize build by the GitHub Actions workflow for ArgoCD to pick up shows up as long sha `3d91e522845512a008a5f710cf7c36cd40bbab88` and commit_sha `3d91e52` is the short sha.
+    - The commit message `GitOps Production Project v4.9.8`, includes the tag name `v4.9.8` 
+    - The new commit `3d91e52` on `overlays/prod/kustomization.yaml` gets detected by ArgoCD for automatic sync to production environment.
 
   - [Commit #3d91e52](https://github.com/arkb2023/devops-kubernetes/commit/3d91e522845512a008a5f710cf7c36cd40bbab88) shows the updated production `kustomization.yaml`: 
 
@@ -566,32 +434,18 @@ kubectl -n staging logs -l app=broadcaster | grep "Staging: Logging only"
   > Shows updated newTag: `v4.9.8` for all three applications
 
 
-- Verify ArgoCD production app syncs automatically with the new commit:
+- ArgoCD Auto-Synced to new commit `3d91e52`
   ```bash
   kubectl -n argocd get application the-project-production -o jsonpath="{.status.sync.revision}"
   # Output shows new commit sha:
   3d91e522845512a008a5f710cf7c36cd40bbab88
   ```
 
-- Confirm in ArgoCD web UI that production app is `Synced` and `Healthy` with new commit`3d91e52`:
+- ArgoCD UI - Synced to `3d91e52`  
+
   ![caption](./images/30-argocd-staging-app-synced-to-new-commit-3d91e52.png)
 
-- Verify pods in production namespace are READY and Running:
-  ```bash 
-  kubectl -n production get pods
-  # Output shows 1 Todo Backend, 1 PostgreSQL, 1 Todo App (2 containers), 6 Broadcaster pods:
-  NAME                                          READY   STATUS    RESTARTS   AGE
-  production-broadcaster-dep-6d9b948847-8vqzs   1/1     Running   0          33m
-  production-broadcaster-dep-6d9b948847-g9675   1/1     Running   0          33m
-  production-broadcaster-dep-6d9b948847-rblqd   1/1     Running   0          33m
-  production-broadcaster-dep-6d9b948847-tfz67   1/1     Running   0          33m
-  production-broadcaster-dep-6d9b948847-vzhww   1/1     Running   0          33m
-  production-broadcaster-dep-6d9b948847-w5pds   1/1     Running   0          33m
-  production-postgresql-db-0                    1/1     Running   0          7h25m
-  production-todo-app-dep-67486c8bd5-rmswh      2/2     Running   0          33m
-  production-todo-backend-dep-b5484cd-hwxjj     1/1     Running   0          33m
-  ```
-- Verify images in production pods correlate with kustomization.yaml updated newTag: `v4.9.8`
+- Verify New Images Deployed with `v4.9.8` tag:
   ```bash
   
   # Todo App Pod
@@ -617,62 +471,96 @@ kubectl -n staging logs -l app=broadcaster | grep "Staging: Logging only"
     Container ID:   containerd://0cae347b46ac40ef4182f5d8ca28da800338bc976d42d2c4e040421867ca1cb3
     Image:          arkb2023/broadcaster:v4.9.8
   ```
+
+- Pods are READY and Running:
+  ```bash 
+  kubectl -n production get pods
+  # Output shows 1 Todo Backend, 1 PostgreSQL, 1 Todo App (2 containers), 6 Broadcaster pods:
+  NAME                                          READY   STATUS    RESTARTS   AGE
+  production-broadcaster-dep-6d9b948847-8vqzs   1/1     Running   0          33m
+  production-broadcaster-dep-6d9b948847-g9675   1/1     Running   0          33m
+  production-broadcaster-dep-6d9b948847-rblqd   1/1     Running   0          33m
+  production-broadcaster-dep-6d9b948847-tfz67   1/1     Running   0          33m
+  production-broadcaster-dep-6d9b948847-vzhww   1/1     Running   0          33m
+  production-broadcaster-dep-6d9b948847-w5pds   1/1     Running   0          33m
+  production-postgresql-db-0                    1/1     Running   0          7h25m
+  production-todo-app-dep-67486c8bd5-rmswh      2/2     Running   0          33m
+  production-todo-backend-dep-b5484cd-hwxjj     1/1     Running   0          33m
+  ```
+
 - Access the Todo App in production environment at: `http://localhost:8081/production`
 
   ![caption](./images/35-production-application-web-access-success.png)
-  ```
 
-### 4. Verify broadcaster app loging in staging vs production environment
-  - Verify Broadcaster app in `staging` enviornment logs all the messages, does not forward those to any slack
-    - Access the Todo App in staging environment at: `http://localhost:8081/staging` and create/update multiple todo items:  
-      ![caption](./images/16-staging-application-create-update-todos.png)
+---
+
+### 8. Verify Broadcaster Behavior
+#### 8.1. Test: Create/update todos at `http://localhost:8081/staging`, NATS Subscribe + Logs messages   
+  - Access the Todo App in staging environment at: `http://localhost:8081/staging` and create/update multiple todo items:  
+
+    ![caption](./images/16-staging-application-create-update-todos.png)
     
-    - Broadcaster logs messages related to the created/updated todo operations:
-      ```bash
-      kubectl -n staging logs -l app=broadcaster |egrep "subject=staging.|Staging: Logging only"
+  - Broadcaster logs messages related to the created/updated todo operations:  
 
-      # Output shows multiple messages received on `staging.todos.created` and `staging.todos.updated` subjects:
-      2025-12-22 10:28:55,776 [staging-broadcaster] INFO Staging: Logging only
-      2025-12-22 12:15:42,436 [staging-broadcaster] INFO subject=staging.todos.created data={"id": 6, "text": "Staging todo task 5", "completed": false, "created_at": "2025-12-22 12:15:42.416096+00:00"}
-      2025-12-22 10:28:51,587 [staging-broadcaster] INFO Staging: Logging only
-      2025-12-22 12:15:19,824 [staging-broadcaster] INFO subject=staging.todos.created data={"id": 3, "text": "Staging todo task 2", "completed": false, "created_at": "2025-12-22 12:15:19.799194+00:00"}
-      2025-12-22 12:15:44,974 [staging-broadcaster] INFO subject=staging.todos.updated data={"id": 1, "text": "Staging Todo App Ready!", "completed": true, "created_at": "2025-12-20 13:37:22.474203+00:00"}
-      2025-12-22 10:28:45,430 [staging-broadcaster] INFO Staging: Logging only
-      2025-12-22 12:15:49,370 [staging-broadcaster] INFO subject=staging.todos.updated data={"id": 3, "text": "Staging todo task 2", "completed": true, "created_at": "2025-12-22 12:15:19.799194+00:00"}
-      2025-12-22 10:28:51,015 [staging-broadcaster] INFO Staging: Logging only
-      2025-12-22 10:28:56,288 [staging-broadcaster] INFO Staging: Logging only
-      2025-12-22 12:15:22,832 [staging-broadcaster] INFO subject=staging.todos.created data={"id": 4, "text": "Staging todo task 3", "completed": false, "created_at": "2025-12-22 12:15:22.812641+00:00"}
-      2025-12-22 12:15:38,090 [staging-broadcaster] INFO subject=staging.todos.created data={"id": 5, "text": "Staging todo task 4", "completed": false, "created_at": "2025-12-22 12:15:38.069718+00:00"}
-      2025-12-22 10:28:55,561 [staging-broadcaster] INFO Staging: Logging only
-      2025-12-22 12:15:12,669 [staging-broadcaster] INFO subject=staging.todos.created data={"id": 2, "text": "Staging todo task 1", "completed": false, "created_at": "2025-12-22 12:15:12.631869+00:00"}
-      2025-12-22 12:15:48,011 [staging-broadcaster] INFO subject=staging.todos.updated data={"id": 2, "text": "Staging todo task 1", "completed": true, "created_at": "2025-12-22 12:15:12.631869+00:00"}
-      ```    
-  - Verify Broadcaster app in `production` enviornment forwards messages externally to slack
-    - Access the Todo App in production environment at: `http://localhost:8081/production` and create/update multiple todo items:  
-      ![caption](./images/36-production-application-create-update-todos.png)
-    
-    - Broadcaster sends messages related to the created/updated todo operations to Slack channel via webhook:  
-      ![caption](./images/41-production-msgs-in-slack.png)
+    ```bash
+    kubectl -n staging logs -l app=broadcaster |egrep "subject=staging.|Staging: Logging only"
 
-### 5. Verify staging database is not backed up, only production database is backed up  
-  - Verify there are backup files created in production environment
+    # Output shows multiple messages received on `staging.todos.created` and `staging.todos.updated` subjects:
+    2025-12-22 10:28:55,776 [staging-broadcaster] INFO Staging: Logging only
+    2025-12-22 12:15:42,436 [staging-broadcaster] INFO subject=staging.todos.created data={"id": 6, "text": "Staging todo task 5", "completed": false, "created_at": "2025-12-22 12:15:42.416096+00:00"}
+    2025-12-22 10:28:51,587 [staging-broadcaster] INFO Staging: Logging only
+    2025-12-22 12:15:19,824 [staging-broadcaster] INFO subject=staging.todos.created data={"id": 3, "text": "Staging todo task 2", "completed": false, "created_at": "2025-12-22 12:15:19.799194+00:00"}
+    2025-12-22 12:15:44,974 [staging-broadcaster] INFO subject=staging.todos.updated data={"id": 1, "text": "Staging Todo App Ready!", "completed": true, "created_at": "2025-12-20 13:37:22.474203+00:00"}
+    2025-12-22 10:28:45,430 [staging-broadcaster] INFO Staging: Logging only
+    2025-12-22 12:15:49,370 [staging-broadcaster] INFO subject=staging.todos.updated data={"id": 3, "text": "Staging todo task 2", "completed": true, "created_at": "2025-12-22 12:15:19.799194+00:00"}
+    2025-12-22 10:28:51,015 [staging-broadcaster] INFO Staging: Logging only
+    2025-12-22 10:28:56,288 [staging-broadcaster] INFO Staging: Logging only
+    2025-12-22 12:15:22,832 [staging-broadcaster] INFO subject=staging.todos.created data={"id": 4, "text": "Staging todo task 3", "completed": false, "created_at": "2025-12-22 12:15:22.812641+00:00"}
+    2025-12-22 12:15:38,090 [staging-broadcaster] INFO subject=staging.todos.created data={"id": 5, "text": "Staging todo task 4", "completed": false, "created_at": "2025-12-22 12:15:38.069718+00:00"}
+    2025-12-22 10:28:55,561 [staging-broadcaster] INFO Staging: Logging only
+    2025-12-22 12:15:12,669 [staging-broadcaster] INFO subject=staging.todos.created data={"id": 2, "text": "Staging todo task 1", "completed": false, "created_at": "2025-12-22 12:15:12.631869+00:00"}
+    2025-12-22 12:15:48,011 [staging-broadcaster] INFO subject=staging.todos.updated data={"id": 2, "text": "Staging todo task 1", "completed": true, "created_at": "2025-12-22 12:15:12.631869+00:00"}
+    ```    
+
+#### 8.2. Test: Create/update todos at `http://localhost:8081/production`, NATS Subscribe + Slack Forward
+
+  - Access the Todo App in production environment at: `http://localhost:8081/production` and create/update multiple todo items:  
+    ![caption](./images/36-production-application-create-update-todos.png)
+  
+  - Slack Channel - Messages received successfully: 
+    ![caption](./images/41-production-msgs-in-slack.png)
+
+### 9. Production-Only DB Backups
+  - Production DB - Multiple backups created:  
     ```bash
     kubectl -n production exec  production-postgresql-db-0 -- ls -l /data
-    total 36
-    -rw-r--r--  1 postgres postgres 5591 Dec 22 15:03 backup-full-20251222-150301.sql
-    -rw-r--r--  1 postgres postgres 5591 Dec 22 15:37 backup-full-20251222-153707.sql
-    -rw-r--r--  1 postgres postgres 5591 Dec 22 15:45 backup-full-20251222-154511.sql
-    -rw-r--r--  1 postgres postgres 5591 Dec 22 15:45 backup-full-20251222-154514.sql
-    drwx------ 19 postgres root     4096 Dec 22 04:01 pgdata
+    # Output:
+    total 156
+    -rw-r--r--  1 postgres postgres  5591 Dec 22 15:03 backup-full-20251222-150301.sql
+    -rw-r--r--  1 postgres postgres  5591 Dec 22 15:37 backup-full-20251222-153707.sql
+    -rw-r--r--  1 postgres postgres  5591 Dec 22 15:45 backup-full-20251222-154511.sql
+    -rw-r--r--  1 postgres postgres  5591 Dec 22 15:45 backup-full-20251222-154514.sql
+    -rw-r--r--  1 postgres postgres 10483 Dec 22 16:00 backup-full-20251222-160029.sql
+    -rw-r--r--  1 postgres postgres 10483 Dec 22 16:15 backup-full-20251222-161531.sql
+    -rw-r--r--  1 postgres postgres 10483 Dec 22 16:30 backup-full-20251222-163031.sql
+    -rw-r--r--  1 postgres postgres 10483 Dec 22 16:45 backup-full-20251222-164533.sql
+    -rw-r--r--  1 postgres postgres 10483 Dec 22 17:00 backup-full-20251222-170034.sql
+    -rw-r--r--  1 postgres postgres 10483 Dec 22 17:15 backup-full-20251222-171535.sql
+    -rw-r--r--  1 postgres postgres 10483 Dec 22 17:30 backup-full-20251222-173036.sql
+    -rw-r--r--  1 postgres postgres 10483 Dec 22 17:45 backup-full-20251222-174536.sql
+    -rw-r--r--  1 postgres postgres 10483 Dec 22 18:00 backup-full-20251222-180038.sql
+    -rw-r--r--  1 postgres postgres 10483 Dec 22 18:15 backup-full-20251222-181538.sql
+    drwx------ 19 postgres root      4096 Dec 22 04:01 pgdata
     ```
-  - Verify there are no backup files created in staging environment
+  
+  - Staging DB - No backups (as expected):
     ```bash
     kubectl -n staging exec staging-postgresql-db-0 -- ls -l /data
     total 4
     drwx------ 19 postgres root 4096 Dec 22 04:00 pgdata
     ```
 
-### 6. Cleanup
+### 10. Cleanup
 - Delete ArgoCD applications
   ```bash
   kubectl -n argocd delete application the-project-staging
