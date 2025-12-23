@@ -236,7 +236,7 @@ This exercise separates the application code and Kubernetes manifests/configurat
   - [Run #20458047484](https://github.com/arkb2023/todo-app-code/actions/runs/20458047484)  
   - Status: `Success`  
 
-    ![caption](./images/25-github-produciton-workflow-tag-push.png)
+    ![caption](./images/4.10/05-github-production-workflow-success.png)
   
   - Workflow updates Production `kustomization.yaml` under [Commit #9d0c4d7](https://github.com/arkb2023/todo-app-configs/commit/9d0c4d7707538208e5984501ac582679f46d609f):
 
