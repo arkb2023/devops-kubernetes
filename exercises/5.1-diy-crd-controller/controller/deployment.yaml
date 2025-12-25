@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dummysite-controller-dep
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dummysite-controller
+  template:
+    metadata:
+      labels:
+        app: dummysite-controller
+    spec:
+      serviceAccountName: dummysite-controller-account
+      containers:
+      - name: dummysite-controller
+        #image: your-registry/dummysite-controller-python:latest
+        image: arkb2023/dummysite-controller:1.25
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "100m"

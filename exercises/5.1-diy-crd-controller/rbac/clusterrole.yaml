@@ -1,0 +1,17 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dummysite-controller-role
+rules:
+# Core resources
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "namespaces"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"] 
+# Deployments  
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"] 
+# CRDs
+- apiGroups: ["stable.dwk"]
+  resources: ["dummysites"]
+  verbs: ["get", "list", "watch", "create", "delete", "patch"]

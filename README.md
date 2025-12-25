@@ -54,3 +54,6 @@
 - [4.8.](https://github.com/arkb2023/devops-kubernetes/tree/4.8/the_project) 
 - [4.9.](https://github.com/arkb2023/devops-kubernetes/tree/4.9/the_project) 
 - [4.10.](https://github.com/arkb2023/devops-kubernetes/tree/4.10/the_project) 
+
+### Chapter-6
+- [5.1.](https://github.com/arkb2023/devops-kubernetes/tree/5.1/exercises/5.1-diy-crd-controller)
