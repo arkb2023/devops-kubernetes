@@ -380,7 +380,7 @@ exercises/5.1-diy-crd-controller/
   ```bash
   kubectl port-forward svc/ds-svc-wikipedia-site 8080:80
   ```
-  - Wikipedia via nginx at `http://locahost:8080`
+  - Wikipedia via nginx at `http://locahost:8080`  
   ![Wikipedia Kubernetes page served via nginx operator](./images/10-local-cached-wikipedia.png)
 
 ---
