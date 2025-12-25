@@ -42,3 +42,6 @@ secrets/
 cache/
 xlocal*
 *local*
+*patch.*
+istio-1.28.2
+*xx*
