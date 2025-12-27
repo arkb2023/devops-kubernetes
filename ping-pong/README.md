@@ -1,7 +1,7 @@
 ## [Exercise 5.3. Log app, the Service Mesh Edition](https://courses.mooc.fi/org/uh-cs/courses/devops-with-kubernetes/chapter-6/service-mesh)  
 
-![exercise 5.3 top half](./images/5.3/00-exercise-5.3-part-1.png)
-![exercise 5.3 bottom half](./images/5.3/00-exercise-5.3-part-2.png)
+![exercise 5.3 top half](../log_output/images/5.3/00-exercise-5.3-part-1.png)
+![exercise 5.3 bottom half](../log_output/images/5.3/00-exercise-5.3-part-2.png)
 ---
 
 ### 1. Key Changes from Base
@@ -381,11 +381,11 @@ log_output/
 - Application accessible: `http://localhost:8080`
   - Greeter v1 response along with other log output and ping pong information  
 
-    ![caption](./images/5.3/21-greetings-v1-response.png)
+    ![caption](../log_output/images/5.3/21-greetings-v1-response.png)
 
   - Greeter v2 response along with other log output and ping pong information  
 
-    ![caption](./images/5.3/22-greetings-v2-response.png)
+    ![caption](../log_output/images/5.3/22-greetings-v2-response.png)
 
 ---
 
@@ -399,7 +399,7 @@ log_output/
   for i in $(seq 1 1000); do curl -s http://localhost:8080/{,/pings,/pingpong} -o /dev/null; done
   ```
 - Access: `http://localhost:20001/kiali`
-  ![caption](./images/5.3/11-kiali-traffic-graph-dark.png)
+  ![caption](../log_output/images/5.3/11-kiali-traffic-graph-dark.png)
 
 ---
 
