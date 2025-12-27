@@ -13,6 +13,11 @@ logging.basicConfig(level=LOG_LEVEL, format=LOG_FORMAT)
 logger = logging.getLogger("log-output")
 logger.setLevel(logging.DEBUG)  # DEBUG for testing
 
+MESSAGE = os.getenv("MESSAGE", "hello world")
+# GREETER_V1 = "http://greeter-svc-v1.exercises.svc.cluster.local:8000/greet"
+# GREETER_V2 = "http://greeter-svc-v2.exercises.svc.cluster.local:8000/greet"
+GREETER = "http://greeter-svc.exercises.svc.cluster.local:8000/greet"
+
 async def lifespan(app: FastAPI):
     logger.debug("Lifespan startup: initializing resources")
     yield
@@ -41,12 +46,26 @@ async def root() -> PlainTextResponse:
             pong_response.raise_for_status()
             pong_text = pong_response.text.strip()
             logger.debug(f"Root endpoint: received response with status {pong_response.status_code}")
+
     except httpx.RequestError as exc:
         logger.error(f"HTTP request error for {pingpong_url}: {exc}")
         pong_text = "(ping-pong service unreachable)"
     except httpx.HTTPStatusError as exc:
         logger.error(f"HTTP status error for {pingpong_url}: {exc}")
         pong_text = f"(ping-pong returned error {exc.response.status_code})"
+
+    # Query greeter v1 + v2
+    try:
+        async with httpx.AsyncClient() as client:
+            # v1_resp = await client.get(GREETER_V1, timeout=5.0)
+            # v2_resp = await client.get(GREETER_V2, timeout=5.0)
+            # greet_v1 = v1_resp.text.strip()
+            # greet_v2 = v2_resp.text.strip()
+            resp = await client.get(GREETER, timeout=5.0)
+            greet = resp.text.strip()
+    except:
+        #greet_v1 = greet_v2 = "greeter unavailable"
+        greet = "greeter unavailable"
 
     timestamp = datetime.utcnow().isoformat() + "Z"
     unique_id = str(uuid.uuid4())
@@ -56,7 +75,10 @@ file_content: {file_content}
 env variable: MESSAGE={message}
 {timestamp}: {unique_id}.
 {pong_text}
+{greet}
 """
+# Greeter v1: {greet_v1}
+# Greeter v2: {greet_v2}
     return PlainTextResponse(response_text.strip())
 
 

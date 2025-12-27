@@ -167,8 +167,10 @@ async def get_pong_count():
         logger.error(f"/pings error: {e}")
         raise HTTPException(status_code=503, detail="Database unavailable")
 
-# Exercise 3.4: Root path rewrite
-@app.get("/")
+# Exercise 3.4: Root path rewrite: changed to '/'
+# @app.get("/")
+# Exercise 5.3: istio httproute: changed to /pingpong
+@app.get("/pingpong")
 async def pingpong():
     logger.debug("Entered pingpong route handler")
     try:

@@ -49,7 +49,7 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - curl -f http://ping-pong-svc.exercises.svc.cluster.local:3456/pings
+                - curl -f http://ping-pong-svc.exercises.svc.cluster.local:3456/healthz
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 1

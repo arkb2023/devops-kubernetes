@@ -41,7 +41,9 @@ secrets/
 *faq*
 cache/
 xlocal*
-*local*
+*.local.*
 *patch.*
 istio-1.28.2
 *xx*
+greeter/manifest/
+environments/exercises-local/log-gateway.yaml

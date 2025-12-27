@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-script
+  namespace: exercises
+data:
+  init.sql: |
+    -- Connect to default postgres database
+    \c postgres;
+
+    -- Create app database (drop if exists - idempotent)
+    DROP DATABASE IF EXISTS "testdb";
+    CREATE DATABASE "testdb";
+    
+    -- Create pingpong_counter table
+    \c "testdb";
+    CREATE TABLE IF NOT EXISTS pingpong_counter (
+        id SERIAL PRIMARY KEY,
+        value INTEGER DEFAULT 0
+    );
+
+    -- Seed initial counter
+    INSERT INTO pingpong_counter (id, value) 
+    VALUES (1, 0) 
+    ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value;
+
+    -- Verify table + data
+    SELECT * FROM pingpong_counter;

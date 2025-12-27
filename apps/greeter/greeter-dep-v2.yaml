@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: greeter-v2
+  namespace: exercises
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: greeter
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: greeter
+        version: v2
+    spec:
+      containers:
+      - name: greeter
+        #image: arkb2023/greeter:5.3.1
+        image: arkb2023/greeter:latest
+        env:
+        - name: VERSION
+          value: "2"
+        ports:
+        - containerPort: 8000
