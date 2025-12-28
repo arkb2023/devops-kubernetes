@@ -59,3 +59,4 @@
 - [5.1.](https://github.com/arkb2023/devops-kubernetes/tree/5.1/exercises/5.1-diy-crd-controller)
 - [5.2.](https://github.com/arkb2023/devops-kubernetes/tree/5.2/exercises/5.2-istio-service-mesh-sample-app/)
 - [5.3.](https://github.com/arkb2023/devops-kubernetes/tree/5.3/log_output)  
+- [5.4.](https://github.com/arkb2023/devops-kubernetes/tree/5.4/exercises/5.4-init-sidecar)  
