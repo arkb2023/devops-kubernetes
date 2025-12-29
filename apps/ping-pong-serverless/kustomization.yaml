@@ -11,6 +11,8 @@ resources:
 - postgresql-statefulset.yaml
 - postgresql-service.yaml
 - postgresql-init-script.yaml
+
+# Ping-pong knative
 - pingpong-knative-service.yaml
 
 patches:
