@@ -6,6 +6,4 @@ COPY pingpong.py .
 
 RUN pip install fastapi uvicorn sqlalchemy asyncpg
 
-ENV PORT=3000
-
-ENTRYPOINT ["sh", "-c", "uvicorn pingpong:app --host 0.0.0.0 --port $PORT"]
+ENTRYPOINT ["sh", "-c", "uvicorn pingpong:app --host 0.0.0.0 --port ${PORT:-8080}"]

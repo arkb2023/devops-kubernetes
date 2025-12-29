@@ -61,3 +61,4 @@
 - [5.3.](https://github.com/arkb2023/devops-kubernetes/tree/5.3/log_output)  
 - [5.4.](https://github.com/arkb2023/devops-kubernetes/tree/5.4/exercises/5.4-init-sidecar)  
 - [5.6.](https://github.com/arkb2023/devops-kubernetes/tree/5.6/exercises/5.6-serverless)  
+- [5.7.](https://github.com/arkb2023/devops-kubernetes/tree/5.7/ping-pong)  

@@ -32,9 +32,14 @@ POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "testdbuserpassword")
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 POSTGRES_DB = os.getenv("POSTGRES_DB", "testdb")
+PORT = os.getenv("PORT", "0000")
+knative = os.getenv("KNATIVE", "false")
 
 DATABASE_URL = f"postgresql+asyncpg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{DB_HOST}:{DB_PORT}/{POSTGRES_DB}"
 logger.debug(f"Database URL: {DATABASE_URL}")
+logger.debug(f"Listening Port: {PORT}")
+logger.debug(f"Knative: {knative}")
+
 
 # Async SQLAlchemy setup
 engine = create_async_engine(
@@ -162,7 +167,12 @@ async def get_pong_count():
             if value is None:
                 raise HTTPException(status_code=500, detail="Counter not initialized")
             logger.debug(f"/pings - pong: {value}")
-            return PlainTextResponse(f"Ping / Pongs: {value}")
+            if knative.lower() == "true":
+                resp_str = f"[Knative] Ping / Pongs: {value}"
+            else:
+                resp_str = f"Ping / Pongs: {value}"
+
+            return PlainTextResponse(resp_str)
     except Exception as e:
         logger.error(f"/pings error: {e}")
         raise HTTPException(status_code=503, detail="Database unavailable")
@@ -206,24 +216,16 @@ async def pingpong():
             new_value = result.scalar()
             logger.debug(f"pingpong - new: {new_value}")
             
-            return PlainTextResponse(f"pong: {new_value}")
+            if knative.lower() == "true":
+                resp_str = f"[Knative] pong: {new_value}"
+            else:
+                resp_str = f"pong: {new_value}"
+            
+            return PlainTextResponse(resp_str)
             
     except Exception as e:
         logger.error(f"pingpong error: {e}")
         raise HTTPException(status_code=503, detail="Database operation failed")
-
-# # Health check endpoint
-# @app.get("/healthz")
-# async def healthz():
-#     try:
-#         async with sessionmaker(bind=engine)() as session:
-#             #result = await session.execute(select(PingPongCounter))
-#             #await session.close()
-#             await session.execute(text("SELECT 1"))
-#             logger.debug(f"healthz: db connection responsive")
-#         return {"status": "healthzy"}
-#     except Exception:
-#         raise HTTPException(503, "DB not ready")
 
 @app.get("/healthz")
 async def healthz():

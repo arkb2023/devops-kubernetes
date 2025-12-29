@@ -1,0 +1,21 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: knative-ping-pong-svc
+spec:
+  template:
+    spec:
+      #terminationGracePeriodSeconds: 10
+      containers:
+        - image: arkb2023/ping-pong:5.7.1
+          envFrom:
+          - configMapRef:
+              name: postgres-db-config
+          ports:
+          - containerPort: 8080  # Knative default
+          env:
+            - name: containerPort 
+              value: "8080"
+            - name: KNATIVE
+              value: "True"
+
