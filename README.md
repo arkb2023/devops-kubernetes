@@ -39,6 +39,7 @@
 - [3.6.](https://github.com/arkb2023/devops-kubernetes/tree/3.6/the_project)  
 - [3.7.](https://github.com/arkb2023/devops-kubernetes/tree/3.7/the_project)  
 - [3.8.](https://github.com/arkb2023/devops-kubernetes/tree/3.8/the_project)  
+- [3.9.](https://github.com/arkb2023/devops-kubernetes/tree/3.9/exercises/3.9-dbaas-vs-diy)
 - [3.10.](https://github.com/arkb2023/devops-kubernetes/tree/3.10/the_project)  
 - [3.11.](https://github.com/arkb2023/devops-kubernetes/tree/3.11/the_project)  
 - [3.12.](https://github.com/arkb2023/devops-kubernetes/tree/3.12/the_project)  
