@@ -80,12 +80,14 @@ Write your answer in the README of the project.
 ---
 
 **Disclaimer:**  
-Educational comparison based on public docs. Costs approximate Test for your workload.
+Educational comparison based on public docs. Costs approximate. Test for your workload.
 
 ---
 
 **References:**  
 - [GKE Database Options](https://cloud.google.com/kubernetes-engine/docs/concepts/database-options)
-- [Cloud SQL Pricing](https://cloud.google.com/sql/pricing) 
-- [Persistent Disk Pricing](https://cloud.google.com/compute/disks-image-pricing)
+- [Cloud SQL Pricing](https://cloud.google.com/sql/pricing)
+- [GKE Persistent Disk Pricing](https://cloud.google.com/compute/disks-image-pricing)
 - [GKE Storage Classes](https://cloud.google.com/kubernetes-engine/docs/concepts/persistent-volumes)
+- [Pricing Calculator](https://cloud.google.com/products/calculator)
+
