@@ -97,7 +97,7 @@ https://docs.openshift.com/container-platform/4.10/installing/index.html
 https://www.mirantis.com/openshift-vs-rancher-vs-mirantis/  
 https://www.portainer.io/blog/rancher-vs-openshift  
 https://trilio.io/resources/rancher-vs-openshift/  
-https://www.portainer.io/blog/rancher-vs-openshift#:~:text=It's%20a%20strong%20fit%20for,vanilla%20Kubernetes%20or%20lighter%20platforms.  
+https://www.portainer.io/blog/rancher-vs-openshift  
 https://www.perplexity.ai/
 
 ---
